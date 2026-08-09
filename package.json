@@ -1,0 +1,12 @@
+{
+  "name": "nordvikmanagerroll20compat",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "pack": "node scripts/pack-cards.mjs"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1"
+  }
+}

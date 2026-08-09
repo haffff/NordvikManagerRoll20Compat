@@ -1,0 +1,12 @@
+{
+    "$schema": "https://raw.githubusercontent.com/haffff/NordvikManager-Addons/refs/heads/main/schemas/addon.json",
+    "key": "roll20compat",
+    "name": "Roll20 Compatibility Layer",
+    "description": "Ports community Roll20 character sheets (Blades in the Dark, Fate Core, ...) as NordvikManager addon cards",
+    "version": "0.0.1",
+    "author": "haffff",
+    "license": "MIT",
+    "repositoryUrl": "https://github.com/haffff/NordvikManagerRoll20Compat",
+    "releaseUrl": "https://api.github.com/repos/haffff/NordvikManagerRoll20Compat/zipball",
+    "dependencies": []
+}

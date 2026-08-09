@@ -1,0 +1,6 @@
+my-credentials
+node_modules/
+
+# ignore packed directory and packed.zip
+packed/
+packed.zip

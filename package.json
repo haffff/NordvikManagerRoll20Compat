@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "pack": "node scripts/pack-cards.mjs"
+    "pack": "node scripts/pack-cards.mjs",
+    "smoke": "node scripts/smoke.mjs"
   },
   "devDependencies": {
     "archiver": "^7.0.1"

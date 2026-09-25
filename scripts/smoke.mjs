@@ -11,10 +11,11 @@
 // a real card built on top of this library.
 import { createRequire } from "node:module";
 import vm from "node:vm";
+import * as RollTemplateEngine from "../card_sources/roll20compat-shared/tools/rollTemplateEngine.mjs";
 import { translateFormula, Roll20FormulaError } from "../card_sources/roll20compat-shared/dice/roll20FormulaTranslator.js";
 import { hasQueries, parseQueries, resolveQueries } from "../card_sources/roll20compat-shared/components/rollQuery.js";
 import { renderRollTemplateHtml } from "../card_sources/roll20compat-shared/components/rollTemplateParser.js";
-import { splitWorkerScript, wrapCharsheet, stripRollTemplates, stripLocalLinks, expandSelfClosingTags, scopeSheetCss, prefixSheetClasses } from "../card_sources/roll20compat-shared/tools/sheetTransform.mjs";
+import { splitWorkerScript, wrapCharsheet, stripRollTemplates, stripLocalLinks, expandSelfClosingTags, scopeSheetCss, extractRollTemplates, extractRollTemplateCss, prefixSheetClasses } from "../card_sources/roll20compat-shared/tools/sheetTransform.mjs";
 
 // runtime/*.js are plain CommonJS scripts (no ES module export — they're
 // loaded as <script> tags directly inside a card's sandboxed iframe, see
@@ -92,14 +93,15 @@ expectThrows(
 
 expectThrows("unresolved ?{} query throws", () => translateFormula("?{Extra|0}d6", {}), Roll20FormulaError);
 
-// Regression: comment-stripping used to run before the "[[" rejection check,
-// so a nested inline roll like "1d20+[[2d6]]" would have its inner "[2d6]"
-// silently eaten as if it were a Roll20 comment, mangling the formula to
-// "1d20+[]" instead of being rejected as unsupported.
-expectThrows(
-  "nested inline roll rejected, not silently mangled",
-  () => translateFormula("1d20+[[2d6]]", {}),
-  Roll20FormulaError
+// A nested inline roll is rolled first in Roll20 and its total added in —
+// flattened into a parenthesised part of the outer formula, and never eaten
+// by comment-stripping (the inner "[2d6]" of "1d20+[[2d6]]" looks like a
+// Roll20 comment to COMMENT_RE). Cyberpunk 2020's skill rolls are
+// [[1d10!! + [[@{Ref}]] ]].
+check(
+  "nested inline rolls are flattened into the outer formula, comments inside them included",
+  ["1d20+[[2d6]]", "1d10!! + [[@{Ref}]] ", "1d6 + [[ [[1]] + 2 [bonus] ]]"].map((f) => translateFormula(f, { Ref: 7 })),
+  ["1d20+(2d6)", "1d10!! + (7)", "1d6 + ((1) + 2 )"]
 );
 
 // ── rollQuery ───────────────────────────────────────────────────────────────
@@ -632,22 +634,227 @@ check(
   '<html><head></head><body><div class="ui-dialog" style="width:868px;"><div class="charsheet" id="root"><div class="sheet-13G">hi</div></div></div></body></html>'
 );
 
+// ── rollTemplateEngine.mjs ──────────────────────────────────────────────────
+
+// Imperium Maledictum's real imtest template (trimmed to the parts exercised),
+// including its own "{{#rollLess() superiority 1 }}" with a trailing space.
+const IMTEST = `<div class="sheet-container">
+  <p>++Incoming Transmission++</p>
+  <h1>{{name}}: {{computed::result}}, {{computed::sl}} SL</h1>
+  {{#rollGreater() computed::result 95}}<p>//<strong>Automatic Failure</strong></p>{{/rollGreater() computed::result 95}}
+  {{#rollLess() computed::result 6}}<p>//<strong>Automatic Success</strong></p>{{/rollLess() computed::result 6}}
+  {{#rollBetween() computed::result 6 95}}<p>//{{computed::sl_info}}</p>{{/rollBetween() computed::result 6 95}}
+  {{#rollTotal() computed::critical 1}}<p><strong>//Critical</strong></p>{{/rollTotal() computed::critical 1}}
+  <p>{{skill_name}}: {{skill_total}}%</p>
+  <p>//{{computed::difficulty}}</p>
+  {{#circumstances}}<p>//{{circumstances}}</p>{{/circumstances}}
+  <p>Test adjusted to {{computed::skill_total}}%</p>
+  {{#circumstances}}<p>//Unmodified roll: {{result}}</p>{{/circumstances}}
+  {{#rollLess() superiority 1 }}{{#superiority}}<p>//Superiority: {{superiority}}</p>{{/superiority}}{{/rollLess() superiority 1 }}
+  {{^damage}}<p>no damage</p>{{/damage}}
+  <p>++End Transmission++</p>
+  <div class="sheet-options">{{reroll}}</div>
+</div>`;
+
+const textOf = (html) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+check(
+  "RollTemplateEngine: Blades in the Dark's template — classes prefixed after it's filled in (holder {{type}} -> sheet-holder sheet-action; the roll chip's own classes untouched), its &#44; character references render as commas (not escaped again), and data-i18n text and data-i18n-alt come from the sheet's translations, untranslated keys left alone",
+  RollTemplateEngine.renderRollTemplate(
+    '<div class="holder {{type}}"><div class="zerodice1">{{zerodice}}</div><div class="zerodice2" data-i18n="zerodice"></div><img data-i18n-alt="hunt" src="x.png"/><span data-i18n="unknown"></span></div>',
+    {
+      name: "blades",
+      fields: [{ key: "type", value: "action" }, { key: "zerodice", value: "\u0000roll:r0\u0000&#44; \u0000roll:r1\u0000 & <b>" }],
+      rolls: {},
+      translate: (key) => ({ zerodice: "Zero Dice — take the lowest", hunt: "Hunt" })[key] ?? key,
+    }
+  ),
+  '<div class="sheet-rolltemplate-blades"><div class="sheet-holder sheet-action"><div class="sheet-zerodice1"><span class="inlinerollresult showtip tipsy-n-right" data-roll-key="r0"></span>&#44; <span class="inlinerollresult showtip tipsy-n-right" data-roll-key="r1"></span> &amp; &lt;b&gt;</div><div class="sheet-zerodice2" data-i18n="zerodice">Zero Dice — take the lowest</div><img data-i18n-alt="hunt" alt="Hunt" src="x.png"/><span data-i18n="unknown"></span></div></div>'
+);
+
+{
+  // The exact message Imperium Maledictum's rollTest() passes to startRoll()
+  // after @{character_name} and the ?{Difficulty} query are resolved.
+  const message =
+    "&{template:imtest} {{reroll=[^{reroll}](~per)}} {{name=@{character_name}}} {{skill_name=Presence}} " +
+    "{{skill_total=[[45]]}} {{difficulty=[[20]]}} {{result=[[1d100]]}} {{sl=[[0]]}} {{sl_info=[[0]]}} " +
+    "{{critical=[[0]]}} {{fumble=[[0]]}}{{superiority=0}}";
+  const resolved = RollTemplateEngine.resolveAttributeRefs(message, { character_name: "Arabella Khairtai" });
+  const parsed = RollTemplateEngine.parseRollMessage(resolved);
+  const extracted = RollTemplateEngine.extractInlineRolls(parsed);
+  check(
+    "RollTemplateEngine: parses Imperium Maledictum's real startRoll message — template, fields in order, one server batch of 7 inline rolls, each field mapped to its roll",
+    {
+      template: parsed.template,
+      keys: parsed.fields.map((f) => f.key),
+      reroll: parsed.fields[0].value,
+      formulas: extracted.rolls.map((r) => r.formula),
+      resultRoll: extracted.fieldRolls.result,
+    },
+    {
+      template: "imtest",
+      keys: ["reroll", "name", "skill_name", "skill_total", "difficulty", "result", "sl", "sl_info", "critical", "fumble", "superiority"],
+      reroll: "[^{reroll}](~per)",
+      formulas: ["45", "20", "1d100", "0", "0", "0", "0"],
+      resultRoll: "r2",
+    }
+  );
+
+  // Server results + the script's finishRoll computed values for the second
+  // Roll20 chat output in Imperium Maledictum's own sheet.png: "ARABELLA
+  // KHAIRTAI: 51, // PRESENCE: 45% //ROUTINE (+20) TEST ADJUSTED TO 65%".
+  const rolls = {
+    r0: { result: 45, dice: [] }, r1: { result: 20, dice: [] }, r2: { result: 51, dice: [{ sides: 100, result: 51 }] },
+    r3: { result: 0, dice: [] }, r4: { result: 0, dice: [] }, r5: { result: 0, dice: [] }, r6: { result: 0, dice: [] },
+  };
+  const html = RollTemplateEngine.renderRollTemplate(IMTEST, {
+    name: "imtest",
+    fields: extracted.fields,
+    fieldRolls: extracted.fieldRolls,
+    rolls,
+    computed: { result: 51, sl: 1, sl_info: "Success", difficulty: "Routine (+20)", skill_total: 65, critical: 0, fumble: 0 },
+    translate: (key) => ({ reroll: "Reroll" })[key] ?? key,
+  });
+  check(
+    "RollTemplateEngine: renders imtest to the same text Roll20 shows in the sheet's own screenshot (computed values, helper sections incl. a trailing-space close tag, inverted section, translated reroll link)",
+    textOf(html),
+    "++Incoming Transmission++ Arabella Khairtai: 51 , 1 SL // Success Presence: % // Routine (+20) Test adjusted to 65 % //Superiority: 0 no damage ++End Transmission++ Reroll"
+  );
+  check(
+    "RollTemplateEngine: output is wrapped in sheet-rolltemplate-<name>, and a plain {{field}} with an inline roll becomes an empty data-roll-key placeholder (numbers come from the server, never this HTML)",
+    {
+      wrapper: html.startsWith('<div class="sheet-rolltemplate-imtest">'),
+      placeholder: html.includes('<span class="inlinerollresult showtip tipsy-n-right" data-roll-key="r0"></span>%'),
+      link: html.includes('<a href="~per">Reroll</a>'),
+    },
+    { wrapper: true, placeholder: true, link: true }
+  );
+}
+
+check(
+  "RollTemplateEngine.splitRollModifiers: Roll20 cs/cf critical ranges leave the formula (the platform would count successes instead of totalling), >N/<N target numbers become the platform's inclusive cs, k/d shorthand becomes kh/dl",
+  ["1d100cs<5cf>96", "5d6>4", "3d6<2", "4d6k3+2", "4d6d1", "1d20cs20cf1+5", "2d6"].map((f) => RollTemplateEngine.splitRollModifiers(f)),
+  [
+    { formula: "1d100", crit: { success: [{ cmp: "<", value: 5 }], fail: [{ cmp: ">", value: 96 }] } },
+    { formula: "5d6cs>3", crit: null },
+    { formula: "3d6cs<3", crit: null },
+    { formula: "4d6kh3+2", crit: null },
+    { formula: "4d6dl1", crit: null },
+    { formula: "1d20+5", crit: { success: [{ cmp: "=", value: 20 }], fail: [{ cmp: "=", value: 1 }] } },
+    { formula: "2d6", crit: null },
+  ]
+);
+
+{
+  // Warhammer Fantasy Roleplay 4e's {{roll=[[1d100cs<5cf>96]]}} with its
+  // template's own {{#rollWasCrit() roll}} / {{#rollWasFumble() roll}}.
+  const wfrpCrit = RollTemplateEngine.splitRollModifiers("1d100cs<5cf>96").crit;
+  const render = (d100, crit) =>
+    RollTemplateEngine.renderRollTemplate(
+      "{{roll}}{{#rollWasCrit() roll}} CRIT{{/rollWasCrit() roll}}{{#rollWasFumble() roll}} FUMBLE{{/rollWasFumble() roll}}",
+      {
+        name: "wfrp",
+        fields: [{ key: "roll", value: "\u0000roll:r0\u0000" }],
+        fieldRolls: { roll: "r0" },
+        rolls: { r0: { result: d100, dice: [{ sides: 100, result: d100 }], crit } },
+      }
+    );
+  const summary = (html) => ({
+    cls: /inlinerollresult showtip tipsy-n-right([^"]*)"/.exec(html)[1].trim(),
+    text: textOf(html),
+  });
+  check(
+    "RollTemplateEngine: crit/fumble honour the roll's own Roll20 ranges (Warhammer 4e: 01-05 critical, 96-100 fumble) in both the template helpers and the roll chip's class; without ranges a d100 only crits on 100",
+    [summary(render(3, wfrpCrit)), summary(render(97, wfrpCrit)), summary(render(100, wfrpCrit)), summary(render(50, wfrpCrit)), summary(render(96, null))],
+    [
+      { cls: "fullcrit", text: "CRIT" },
+      { cls: "fullfail", text: "FUMBLE" },
+      { cls: "fullfail", text: "FUMBLE" },
+      { cls: "", text: "" },
+      { cls: "", text: "" },
+    ]
+  );
+}
+
+check(
+  "RollTemplateEngine: a missing @{attr} becomes 0 inside an inline roll but empty elsewhere (a missing name must not read \"0\")",
+  RollTemplateEngine.resolveAttributeRefs("{{name=@{character_name}}} {{r=[[1d20+@{bonus}]]}} {{n=@{nested}}}", { nested: "@{inner}", inner: "x" }),
+  "{{name=}} {{r=[[1d20+0]]}} {{n=x}}"
+);
+
+{
+  const tpl =
+    "{{#rollWasCrit() atk}}CRIT{{/rollWasCrit() atk}}{{#rollWasFumble() atk}}FUMBLE{{/rollWasFumble() atk}}" +
+    "{{#^rollWasCrit() atk}}normal{{/^rollWasCrit() atk}}{{#rollTotal() dmg 7}}seven{{/rollTotal() dmg 7}}";
+  const render = (atkDice) =>
+    textOf(
+      RollTemplateEngine.renderRollTemplate(tpl, {
+        name: "t",
+        fields: [{ key: "atk", value: "x" }, { key: "dmg", value: "y" }],
+        fieldRolls: { atk: "r0", dmg: "r1" },
+        rolls: { r0: { result: 0, dice: atkDice }, r1: { result: 7, dice: [] } },
+      })
+    );
+  check(
+    "RollTemplateEngine: rollWasCrit/rollWasFumble look at the field's kept dice (a dropped max die doesn't count), rollTotal compares totals",
+    [render([{ sides: 20, result: 20 }]), render([{ sides: 20, result: 1 }]), render([{ sides: 20, result: 20, kept: false }, { sides: 20, result: 9 }])],
+    ["CRITseven", "FUMBLEnormalseven", "normalseven"]
+  );
+}
+
+check(
+  "RollTemplateEngine: Roll20's default template lists every field but name via allprops(), escaping field text",
+  textOf(
+    RollTemplateEngine.renderRollTemplate(RollTemplateEngine.DEFAULT_TEMPLATE_HTML, {
+      name: "default",
+      fields: [{ key: "name", value: "Fireball" }, { key: "Damage", value: "8d6 <b>fire</b>" }, { key: "Save", value: "DEX" }],
+    })
+  ),
+  "Fireball Damage 8d6 &lt;b&gt;fire&lt;/b&gt; Save DEX"
+);
+
+check(
+  "extractRollTemplates: keeps every <rolltemplate> by name with its classes prefixed like the sheet's (Imperium Maledictum: class=\"container\" styled as .sheet-container)",
+  extractRollTemplates(
+    '<div class="sheet-main">x</div><rolltemplate class="sheet-rolltemplate-imtest"><div class="container"><p>{{name}}</p></div></rolltemplate>' +
+      "<rolltemplate class='sheet-rolltemplate-other'>{{a}}</rolltemplate>",
+    ".sheet-rolltemplate-imtest .sheet-container { color: red; }"
+  ),
+  { imtest: '<div class="sheet-container"><p>{{name}}</p></div>', other: "{{a}}" }
+);
+
+check(
+  "extractRollTemplateCss: keeps fonts first, then only roll-template/inline-roll rules (incl. inside @media), then the base CSS — never the rest of the sheet",
+  extractRollTemplateCss(
+    '@import url("https://fonts.test/a.css");\n.sheet-main { color: red; }\n.sheet-rolltemplate-imtest .sheet-container { color: blue; }\n@font-face { font-family: "F"; src: url(f.woff); }\n@media (max-width: 500px) { .sheet-main { x: 1; } .sheet-rolltemplate-imtest h1 { y: 2; } }\n.charsheet .inlinerollresult { z: 3; }',
+    "/* base */"
+  ),
+  '@import url("https://fonts.test/a.css");\n@font-face { font-family: "F"; src: url(f.woff); }\n/* base */\n.sheet-rolltemplate-imtest .sheet-container { color: blue; }\n@media (max-width: 500px){.sheet-rolltemplate-imtest h1 { y: 2; }\n}\n.charsheet .inlinerollresult { z: 3; }'
+);
+
 // ── propertyStore.js (async — runs last) ────────────────────────────────────
 
 // A CardAPI stand-in shaped like the real host (src/CardAPI.js): async calls,
 // *Many take arrays of { name, value }, and change events reach only
 // Subscribe()d names — which the test fires by hand via emit().
-function fakeHostApi(initial, { failGetProperties = false } = {}) {
+// Like the REAL bridge (cardSandbox.js), there is no scoped
+// Properties.GetProperties unless scopedGetProperties is set — only
+// Properties.Global.GetProperties(parentId). A fake that always had the
+// scoped one hid a live bug: the store fell back to a request per field.
+function fakeHostApi(initial, { failGetProperties = false, scopedGetProperties = false } = {}) {
   const props = new Map(Object.entries(initial).map(([name, value]) => [name, { id: "id_" + name, name, value }]));
   const subs = {};
   const calls = [];
   const tick = () => new Promise((r) => setTimeout(r, 0));
+  const loadAll = async (label) => { calls.push(label); await tick(); if (failGetProperties) throw new Error("nope"); return [...props.values()]; };
   return {
     calls,
     props,
+    cardId: "card-1",
     emit: (name, prop) => (subs[name] || []).forEach((cb) => cb(prop)),
     Properties: {
-      GetProperties: async () => { calls.push(["GetProperties"]); await tick(); if (failGetProperties) throw new Error("nope"); return [...props.values()]; },
+      ...(scopedGetProperties ? { GetProperties: () => loadAll(["GetProperties"]) } : {}),
+      Global: { GetProperties: (parentId) => loadAll(["Global.GetProperties", parentId]) },
       Get: async (name) => { calls.push(["Get", name]); await tick(); return props.get(name) ?? null; },
       GetMany: async (names) => { calls.push(["GetMany", names]); await tick(); return names.map((n) => props.get(n)).filter(Boolean); },
       Init: async (name, value) => { calls.push(["Init", name]); await tick(); if (!props.has(name)) props.set(name, { name, value }); },
@@ -657,7 +864,7 @@ function fakeHostApi(initial, { failGetProperties = false } = {}) {
       Remove: async (name) => { calls.push(["Remove", name]); props.delete(name); },
       Subscribe: (name, cb) => { (subs[name] = subs[name] || []).push(cb); },
       Unsubscribe: () => {},
-      List: { Add: async () => {} },
+      List: { Add: async (name) => { calls.push(["List.Add", name]); }, Update: async (name) => { calls.push(["List.Update", name]); } },
     },
   };
 }
@@ -670,19 +877,22 @@ const { PropertyStore } = globalThis.Roll20Compat;
   check(
     "PropertyStore: loads the card once with GetProperties, then answers Get/GetMany locally — including properties that don't exist (the host never caches a miss)",
     { str: str?.value, missing, many: many.map((p) => p.value), calls: host.calls },
-    { str: "34", missing: null, many: ["34", "page1"], calls: [["GetProperties"]] }
+    { str: "34", missing: null, many: ["34", "page1"], calls: [["Global.GetProperties", "card-1"]] }
   );
 }
 
 {
   const host = fakeHostApi({ existing: "x" });
   const api = PropertyStore.wrap(host);
-  await Promise.all([api.Properties.Init("existing", "default"), api.Properties.Init("a", "1"), api.Properties.Init("b", "2"), api.Properties.Init("a", "1")]);
-  const b = await api.Properties.Get("b");
+  await Promise.all([api.Properties.Init("existing", "default"), api.Properties.Init("a", "1"), api.Properties.Init("b", "2")]);
+  const [a, existing] = [await api.Properties.Get("a"), await api.Properties.Get("existing")];
+  await api.Properties.Set("a", 1);
+  const beforeChange = host.calls.filter(([m]) => !m.endsWith("GetProperties"));
+  await api.Properties.Set("b", "3");
   check(
-    "PropertyStore: Init calls in the same tick become ONE InitMany of only the missing properties, readable immediately",
-    { calls: host.calls.filter(([m]) => m !== "GetProperties"), b: b?.value, existing: host.props.get("existing").value },
-    { calls: [["InitMany", ["a", "b"]]], b: "2", existing: "x" }
+    "PropertyStore: Init keeps a sheet default locally and sends nothing (like Roll20, an untouched attribute isn't stored — Warhammer 4e Character Sheet's first open was 3542 Adds); a Set equal to the default stays local, the first real change creates it",
+    { a: a?.value, existing: existing?.value, beforeChange, calls: host.calls.filter(([m]) => !m.endsWith("GetProperties")) },
+    { a: "1", existing: "x", beforeChange: [], calls: [["SetMany", [["b", "3"]]]] }
   );
 }
 
@@ -692,22 +902,22 @@ const { PropertyStore } = globalThis.Roll20Compat;
   await Promise.all([api.Properties.Set("str", 34), api.Properties.Set("str_bonus", "4"), api.Properties.Set("wounds", "9"), api.Properties.Set("str_bonus", "5")]);
   check(
     "PropertyStore: Set calls in the same tick become ONE SetMany, skipping values unchanged as strings (34 vs \"34\") with the last write per name winning, all sent as strings",
-    host.calls.filter(([m]) => m !== "GetProperties"),
+    host.calls.filter(([m]) => !m.endsWith("GetProperties")),
     [["SetMany", [["str_bonus", "5"], ["wounds", "9"]]]]
   );
 }
 
 {
-  const host = fakeHostApi({});
+  const host = fakeHostApi({ repeating_skills: '[{"id":"r1","fields":{}}]' });
   const api = PropertyStore.wrap(host);
-  const order = [];
-  const initDone = api.Properties.Init("tab", "page1").then(() => order.push("init resolved"));
-  const setDone = api.Properties.Set("tab", "page2").then(() => order.push("set resolved"));
-  await Promise.all([initDone, setDone]);
+  await Promise.all([api.Properties.Init("repeating_weapons", "[]"), api.Properties.Init("repeating_skills", "[]")]);
+  await api.Properties.List.Add("repeating_weapons", {});
+  await api.Properties.List.Update("repeating_weapons", "x", {});
+  await api.Properties.List.Add("repeating_skills", {});
   check(
-    "PropertyStore: a Set queued after an Init of the same new property waits for the InitMany to finish, so the two can never both create it",
-    { calls: host.calls.filter(([m]) => m !== "GetProperties"), order },
-    { calls: [["InitMany", ["tab"]], ["SetMany", [["tab", "page2"]]]], order: ["init resolved", "set resolved"] }
+    "PropertyStore: the first List operation on a repeating section's local-only list creates it and waits until the host sees it (List.* on a missing property is lost); later ones, and lists already on the server, go straight through",
+    host.calls.filter(([m]) => !m.endsWith("GetProperties")),
+    [["InitMany", ["repeating_weapons"]], ["Get", "repeating_weapons"], ["List.Add", "repeating_weapons"], ["List.Update", "repeating_weapons"], ["List.Add", "repeating_skills"]]
   );
 }
 
@@ -741,7 +951,7 @@ const { PropertyStore } = globalThis.Roll20Compat;
   const afterEcho = await api.Properties.Get("version");
   check(
     "PropertyStore: a write of 0 over \"\" is sent (as \"0\"), and reads back as the number 0 even after the backend echoes \"0\"",
-    { calls: host.calls.filter(([m]) => m !== "GetProperties"), value: afterEcho?.value, type: typeof afterEcho?.value },
+    { calls: host.calls.filter(([m]) => !m.endsWith("GetProperties")), value: afterEcho?.value, type: typeof afterEcho?.value },
     { calls: [["SetMany", [["version", "0"]]]], value: 0, type: "number" }
   );
 }
@@ -756,7 +966,7 @@ const { PropertyStore } = globalThis.Roll20Compat;
   const value = (await api.Properties.Get("version"))?.value;
   check(
     "PropertyStore: re-writing a stored \"0\" as the number 0 sends nothing but reads back as a number",
-    { calls: host.calls.filter(([m]) => m !== "GetProperties"), value, type: typeof value },
+    { calls: host.calls.filter(([m]) => !m.endsWith("GetProperties")), value, type: typeof value },
     { calls: [], value: 0, type: "number" }
   );
 }
@@ -766,12 +976,28 @@ const { PropertyStore } = globalThis.Roll20Compat;
   const api = PropertyStore.wrap(host);
   const originalWarn = console.warn;
   console.warn = () => {};
-  const str = await api.Properties.Get("str");
+  const [str, bonus] = await Promise.all([api.Properties.Get("str"), api.Properties.Get("bonus")]);
+  await Promise.all([api.Properties.Init("a", "1"), api.Properties.Init("b", "2"), api.Properties.Set("str", 35), api.Properties.Set("c", 3)]);
   console.warn = originalWarn;
   check(
-    "PropertyStore: falls back to direct CardAPI calls if GetProperties fails",
-    { str: str?.value, calls: host.calls.map(([m]) => m) },
-    { str: "34", calls: ["GetProperties", "Get"] }
+    "PropertyStore: if the card can't be loaded it still batches — reads in a tick become ONE GetMany, Inits ONE InitMany, Sets ONE SetMany (never a host round trip per field)",
+    { str: str?.value, bonus, calls: host.calls },
+    {
+      str: "34",
+      bonus: null,
+      calls: [["Global.GetProperties", "card-1"], ["GetMany", ["str", "bonus"]], ["InitMany", ["a", "b"]], ["SetMany", [["str", "35"], ["c", "3"]]]],
+    }
+  );
+}
+
+{
+  const host = fakeHostApi({ str: "34" }, { scopedGetProperties: true });
+  const api = PropertyStore.wrap(host);
+  await api.Properties.Get("str");
+  check(
+    "PropertyStore: loads with the scoped Properties.GetProperties when the bridge has it, otherwise Properties.Global.GetProperties(cardId) — one request either way",
+    host.calls,
+    [["GetProperties"]]
   );
 }
 

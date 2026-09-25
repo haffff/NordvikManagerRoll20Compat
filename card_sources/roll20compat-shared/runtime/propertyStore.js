@@ -7,15 +7,20 @@
 // while the traffic to the host collapses:
 //
 //   - Get/GetMany are answered locally. The whole card is loaded once with
-//     Properties.GetProperties (the host's cache is warmed with every
-//     property when the card opens), so "this attribute doesn't exist" is
+//     a single GetProperties request (see loadAll below), so "this attribute doesn't exist" is
 //     known locally too — the host never caches a miss, so every getAttrs
 //     of a never-set attribute used to be a QueryProperties request, on
 //     every call (335 per open of Warhammer Fantasy Roleplay 4e alone).
-//   - Init calls made in the same tick are sent as ONE InitMany, and only
-//     for properties that don't already exist. One Init per field meant one
-//     QueryProperties request per field on a new character (~1500 for Call
-//     of Cthulhu 7e).
+//   - Init only records the default locally — nothing is sent. Like Roll20,
+//     an attribute the player never changed isn't stored: it reads as its
+//     sheet default, and is created on the server by the first Set that
+//     actually changes it. Saving every default made a new character's first
+//     open create every field — 3542 websocket Adds for Warhammer 4e
+//     Character Sheet — and the server's backlog timed out the
+//     QueryProperties requests queued behind it.
+//   - The exception is a repeating section's list property: List.* needs it
+//     to exist, so the first List operation on a local-only list creates it
+//     (see ensureOnServer).
 //   - Set calls made in the same tick are sent as ONE SetMany, skipping
 //     values that haven't changed (compared as strings — see normalizeValue) (a setAttrs of 40 computed values was 40
 //     separate host calls).
@@ -87,9 +92,13 @@
     const props = cardApi.Properties;
     const store = new Map(); // name -> property DTO ({ name, value, id, ... })
     const tracked = new Set();
-    let fallback = false; // GetProperties unavailable: pass everything through
+    let fallback = false; // the card couldn't be loaded: reads go to the host (still batched)
+    // Names whose value here is only the sheet's default: never created on
+    // the server by this store (see Init in the header).
+    const localOnly = new Set();
 
     const onEvent = (name) => (prop) => {
+      localOnly.delete(name);
       if (!prop) {
         store.delete(name);
         return;
@@ -104,8 +113,17 @@
       props.Subscribe(name, onEvent(name));
     };
 
+    // One request for the whole card. The card bridge (NordvikManagerFrontEnd's
+    // cardSandbox.js) only gained a scoped GetProperties later — older ones
+    // have just Global.GetProperties(parentId), the same single
+    // QueryProperties call for this card's id. Without either, the store
+    // falls back (below) but still batches.
+    const loadAll =
+      typeof props.GetProperties === "function"
+        ? () => props.GetProperties()
+        : () => props.Global.GetProperties(cardApi.cardId);
     const loaded = Promise.resolve()
-      .then(() => props.GetProperties())
+      .then(loadAll)
       .then((all) => {
         if (!Array.isArray(all)) throw new Error("GetProperties returned no list");
         for (const prop of all) {
@@ -116,7 +134,7 @@
       })
       .catch((err) => {
         fallback = true;
-        console.warn("Roll20Compat.PropertyStore: falling back to direct CardAPI calls", err);
+        console.warn("Roll20Compat.PropertyStore: couldn't load the card's properties; reads go to the host, still batched", err);
       });
 
     // Settles once every Init queued so far has been sent — extended the
@@ -126,20 +144,26 @@
 
     const queueInit = createBatcher((items) => props.InitMany(dedupeByName(items)));
 
+    // Fallback only (the card couldn't be loaded): reads made in the same tick
+    // become one GetMany — never one host round trip (and, for a property
+    // that doesn't exist, one server request) per attribute.
+    const queueGet = createBatcher((names) => props.GetMany([...new Set(names)]));
+    const fetchOne = (name) => queueGet(name).then((found) => (found || []).find((p) => p && p.name === name) ?? null);
+
     const queueSet = createBatcher((items) =>
       initsInFlight.then(() => props.SetMany(dedupeByName(items)))
     );
 
     const getOne = async (name) => {
       await loaded;
-      if (fallback) return props.Get(name);
+      if (fallback) return fetchOne(name);
       track(name);
       return store.get(name) ?? null;
     };
 
     const getMany = async (names) => {
       await loaded;
-      if (fallback) return props.GetMany(names);
+      if (fallback) return Promise.all((Array.isArray(names) ? names : [names]).map(fetchOne)).then((all) => all.filter(Boolean));
       const list = Array.isArray(names) ? names : [names];
       list.forEach(track);
       return list.map((name) => store.get(name)).filter(Boolean);
@@ -148,13 +172,32 @@
     const initOne = async (name, value) => {
       const sentValue = normalizeValue(value);
       await loaded;
-      if (fallback) return props.Init(name, sentValue);
+      if (fallback) {
+        // Still one InitMany per tick; the host checks what already exists.
+        const sent = queueInit({ name, value: sentValue });
+        initsInFlight = Promise.all([initsInFlight, sent.catch(() => {})]);
+        return sent;
+      }
       track(name);
       if (store.has(name)) return;
       store.set(name, { name, value });
-      const sent = queueInit({ name, value: sentValue });
+      localOnly.add(name);
+    };
+
+    // Creates a local-only property (its default) on the server and waits
+    // until the host can see it: Properties.Add is fire-and-forget there, and
+    // a List operation on a property the server hasn't created yet is lost.
+    const ensureOnServer = async (name) => {
+      await loaded;
+      if (!localOnly.has(name)) return;
+      localOnly.delete(name);
+      const sent = queueInit({ name, value: normalizeValue(store.get(name)?.value) });
       initsInFlight = Promise.all([initsInFlight, sent.catch(() => {})]);
       await sent;
+      for (let i = 0; i < 10; i++) {
+        if (await props.Get(name)) return;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
     };
 
     const initMany = async (list) => {
@@ -164,11 +207,12 @@
     const setOne = async (name, value) => {
       const sentValue = normalizeValue(value);
       await loaded;
-      if (fallback) return props.Set(name, sentValue);
+      if (fallback) return queueSet({ name, value: sentValue });
       track(name);
       const current = store.get(name);
       store.set(name, { ...(current || {}), name, value });
       if (current && normalizeValue(current.value) === sentValue) return;
+      localOnly.delete(name);
       await queueSet({ name, value: sentValue });
     };
 
@@ -179,10 +223,20 @@
     const removeOne = async (name) => {
       await loaded;
       store.delete(name);
+      localOnly.delete(name);
       return props.Remove(name);
     };
 
+    const listOp = (op) => async (name, ...args) => {
+      await ensureOnServer(name);
+      return props.List[op](name, ...args);
+    };
+    const List = props.List
+      ? Object.freeze({ Add: listOp("Add"), Remove: listOp("Remove"), Update: listOp("Update"), Reorder: listOp("Reorder") })
+      : props.List;
+
     const Properties = Object.create(props, {
+      List: { value: List },
       Get: { value: getOne },
       GetMany: { value: getMany },
       Init: { value: initOne },

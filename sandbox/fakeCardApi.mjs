@@ -70,6 +70,49 @@ export const FAKE_CARD_API_SCRIPT = `<script>
     _notify(name);
   }
 
+  // The real host's property cache (src/CardAPI.js _propertyCache).
+  const _hostCached = new Set();
+  let _hostWarm = false;
+  function _warmHost() {
+    if (_hostWarm) return;
+    _hostWarm = true;
+    Object.keys(_props).forEach((n) => _hostCached.add(n));
+  }
+  function _hostLookup(names) {
+    _warmHost();
+    const uncached = names.filter((n) => !_hostCached.has(n));
+    if (!uncached.length) return;
+    _count("server request: QueryProperties");
+    uncached.forEach((n) => { if (_props[n] !== undefined) _hostCached.add(n); });
+  }
+  // Fire-and-forget websocket Add: the server creates it, and the host caches
+  // it when the property_add echo arrives.
+  function _hostAdd(name, value) {
+    _count("server request: Add (websocket)");
+    setTimeout(() => {
+      if (_props[name] === undefined) _props[name] = value;
+      _hostCached.add(name);
+      _notify(name);
+    }, 30);
+  }
+  function _hostInitMany(list) {
+    _hostLookup(list.map((p) => p.name));
+    list.forEach((p) => { if (_props[p.name] === undefined) _hostAdd(p.name, p.value); });
+    return Promise.resolve();
+  }
+  // Every name written through Set/SetMany (the sheet's scripts or a
+  // player) — check.mjs doesn't expect those to show their HTML default.
+  window.__sandboxWritten = [];
+  function _hostSetMany(list) {
+    list.forEach((p) => window.__sandboxWritten.push(p.name));
+    _hostLookup(list.map((p) => p.name));
+    list.forEach((p) => {
+      if (_hostCached.has(p.name)) _set(p.name, p.value);
+      else _hostAdd(p.name, p.value);
+    });
+    return Promise.resolve();
+  }
+
   window.CardAPI = {
     cardId: 'sandbox-card',
     additionalArguments: null,
@@ -77,41 +120,42 @@ export const FAKE_CARD_API_SCRIPT = `<script>
     Properties: {
       // Same shapes as the real host (src/CardAPI.js): *Many take/return
       // arrays of { name, value }. Each call counts once in __apiCounts — one
-      // host call each in the real app — and a Get/GetMany of a property
-      // that doesn't exist is counted separately, since the real host never
-      // caches a miss (every one is a QueryProperties server request).
+      // host call each in the real app.
+      //
+      // Also models the real host's own cache, which is what decides server
+      // traffic: it's warmed once at startup (InitApi), and a Get/GetMany/
+      // Init/Set of a name it doesn't hold is a QueryProperties request.
+      // Properties.Add is a fire-and-forget websocket command there — the
+      // host only learns the new property from the server's property_add
+      // echo a moment later — so a brand-new card's fields stay uncached
+      // until then. Counted as "server request: QueryProperties" and
+      // "server request: Add (websocket)".
       Get: (name) => {
         _count("Properties.Get");
-        if (_props[name] === undefined) _count("server request: lookup of missing property");
+        _hostLookup([name]);
         return _get(name);
       },
       GetMany: (names) => {
         _count("Properties.GetMany");
         const list = Array.isArray(names) ? names : [names];
-        if (list.some((n) => _props[n] === undefined)) _count("server request: lookup of missing property");
+        _hostLookup(list);
         return Promise.all(list.map(_get)).then((found) => found.filter(Boolean));
-      },
-      GetProperties: () => {
-        _count("Properties.GetProperties");
-        return Promise.resolve(Object.keys(_props).map((name) => ({ name, value: _props[name] })));
       },
       Set: (name, value) => {
         _count("Properties.Set");
-        return _set(name, value);
+        return window.CardAPI.Properties.SetMany._impl([{ name, value }]);
       },
       SetMany: (list) => {
         _count("Properties.SetMany");
-        return Promise.all((list || []).map((p) => _set(p.name, p.value)));
+        return window.CardAPI.Properties.SetMany._impl(list || []);
       },
       Init: (name, value) => {
         _count("Properties.Init");
-        if (_props[name] === undefined) _count("server request: lookup of missing property");
-        return _init(name, value);
+        return window.CardAPI.Properties.InitMany._impl([{ name, value }]);
       },
       InitMany: (list) => {
         _count("Properties.InitMany");
-        if ((list || []).some((p) => _props[p.name] === undefined)) _count("server request: lookup of missing property");
-        return Promise.all((list || []).map((p) => _init(p.name, p.value)));
+        return window.CardAPI.Properties.InitMany._impl(list || []);
       },
       Remove: _remove,
 
@@ -169,7 +213,13 @@ export const FAKE_CARD_API_SCRIPT = `<script>
         Get: (parentId, name) => _get(name),
         GetMany: (parentId, names) => Promise.all((names || []).map(_get)),
         GetByNames: (parentId, names) => Promise.all((names || []).map(_get)),
-        GetProperties: () => Promise.resolve([]),
+        // Mirrors the REAL bridge: it has no scoped Properties.GetProperties
+        // (a fake that did hid a live bug — the property store fell back to
+        // one request per field), only this one, for any card id.
+        GetProperties: (parentId) => {
+          _count("Properties.Global.GetProperties");
+          return Promise.resolve(parentId === "sandbox-card" ? Object.keys(_props).map((name) => ({ name, value: _props[name] })) : []);
+        },
         Set: (parentId, name, val) => _set(name, val),
         SetMany: (parentId, list) => Promise.all((list || []).map((p) => _set(p.name, p.value))),
         Init: (parentId, name, val) => _init(name, val),
@@ -209,6 +259,42 @@ export const FAKE_CARD_API_SCRIPT = `<script>
       register: () => Promise.resolve(null),
     },
 
+    // Roll now, post later (the real one is the backend's RollsController via
+    // src/CardAPI.js Rolls). Start rolls deterministically — every die shows
+    // ceil(sides / 2), so 1d100 is 50 and 2d6 is 3+3 — and Finish just
+    // records what would be posted, in __sandboxLog as "Rolls.Finish".
+    Rolls: {
+      Start: (formulas) => {
+        _count('Rolls.Start');
+        log('Rolls.Start', formulas);
+        const results = (formulas || []).map(function (f) {
+          const dices = [];
+          // No backslashes in here: this whole script is a template literal,
+          // where "\d" silently becomes "d".
+          const expr = String(f.formula).replace(/([0-9]*)d([0-9]+)/g, function (_, count, sides) {
+            const n = Number(count || 1);
+            const s = Number(sides);
+            const values = [];
+            for (let i = 0; i < n; i++) {
+              const v = Math.ceil(s / 2);
+              values.push(v);
+              dices.push({ index: dices.length, diceValue: s, times: 1, result: v, kept: true });
+            }
+            return '(' + values.join('+') + ')';
+          });
+          let result = 0;
+          if (/^[-0-9+*/(). ]+$/.test(expr)) result = Math.round(Function('return (' + expr + ')')());
+          return { key: f.key, roll: { result: result, rolled: f.formula, dices: dices } };
+        });
+        return Promise.resolve({ rollId: 'sandbox-roll-' + (++_rowCounter), results: results });
+      },
+      Finish: (payload) => {
+        _count('Rolls.Finish');
+        log('Rolls.Finish', payload);
+        return Promise.resolve();
+      },
+    },
+
     SendChatMessage: (message) => { log('SendChatMessage', message); },
     FireAction: (action, args) => { log('FireAction', { action, args }); },
     SendCustomCommandToServer: (command, data) => { log('SendCustomCommandToServer', { command, data }); },
@@ -216,6 +302,9 @@ export const FAKE_CARD_API_SCRIPT = `<script>
     SubscribeWebSocket: () => {},
     UnsubscribeWebSocket: () => {},
   };
+
+  window.CardAPI.Properties.SetMany._impl = _hostSetMany;
+  window.CardAPI.Properties.InitMany._impl = _hostInitMany;
 
   // Exposed for Playwright's page.evaluate() inspection — not part of the
   // real CardAPI surface, sandbox-only.

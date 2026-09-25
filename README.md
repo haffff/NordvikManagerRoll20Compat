@@ -28,6 +28,7 @@ card_sources/
       translationFill.js             #   data-i18n fill from a sheet's own translation.json
       bootstrap.js                   #   entry point wiring the above together
       roll20-base.css                #   the layout primitives Roll20's platform CSS normally supplies
+    tools/rollTemplateEngine.mjs     # roll messages -> one server batch of inline rolls -> the sheet's <rolltemplate> in chat
     tools/sheetTransform.mjs         # pure HTML/CSS transforms (worker split, class prefixing, rolltemplate
                                      # + local <link> stripping, .ui-dialog/.charsheet wrapping, translation config)
     patches/<key>.css                # per-sheet CSS fixes, applied by the key the GM gives on import
@@ -79,9 +80,10 @@ All sandbox checks load the card inside an `<iframe sandbox="allow-scripts">` (`
 
 ## Known limitations
 
-- **Multi-roll buttons fire only the first roll.** A button whose value has more than one `[[...]]` only rolls the first — this breaks most rolls on Call of Cthulhu 7e (96% of its roll buttons), and some on Cyberpunk Red and Dungeon World. See `rollButtons.js`.
-- **`&{template:...}` roll templates aren't rendered.** `<rolltemplate>` blocks are stripped, and rolls show as the platform's plain roll result. Queries that only appear in a template's text fields (outside the first `[[...]]`) aren't asked.
-- **Roll queries containing `@{...}`** (e.g. `?{Proficient?|No, |Yes,+@{prof}}`) aren't recognised as queries and are left in the formula as-is. None of the 12 reference sheets' roll buttons hit this today.
+- **Roll templates and several inline rolls need the platform's roll API** (`CardAPI.Rolls`, backend `RollsController`). With it, a roll button or a sheet script's `startRoll`/`finishRoll` rolls every `[[...]]` of the message in one server call and posts the sheet's own `<rolltemplate>` rendered in chat (`tools/rollTemplateEngine.mjs`); without it, rolls fall back to one formula through `/roll`. Sheets imported before templates were kept have none stored — re-import them, or their rolls use Roll20's default template.
+- **Roll20 dice modifiers are translated for the platform's dice engine:** `cs`/`cf` critical ranges (e.g. `1d100cs<5cf>96`) drive crit/fumble highlighting and `rollWasCrit`/`rollWasFumble` but don't change the total; `5d6>4` target numbers become the platform's success counting (`cs>3`); `4d6k3`/`4d6d1` become `kh3`/`dl1`. Rerolls (`r`, `ro`), failure counting (`f`) and sorting are passed through as-is.
+- **Roll20's Compendium API** (`getCompendiumPage`/`getCompendiumQuery`, 22 corpus sheets) never answers — no compendium exists — so compendium-driven auto-fill (e.g. Warhammer 4e's species skills/talents) doesn't happen; the rest of the sheet works.
+- **Not supported in roll messages:** whisper prefixes (`/w gm ...` — the roll is posted publicly), `[label](~ability)` reroll links (shown, but inert), `%{...}` ability calls, and `@{field}` inside a repeating row's button meaning *that row's* field.
 - **`%{...}` ability calls, Compendium drops, and API scripts (TokenMod etc.) aren't supported.** A sheet's own `translation.json` works; live `getTranslationByKey()` lookups against Roll20's i18n service don't.
 - **Multiple worker `<script>` blocks** are joined into one script; if that doesn't parse (e.g. 13th Age's `const` redeclared per block), each block gets its own `{ }` scope, and a block that is itself broken is skipped with a `console.error`.
 - **Roll20's Pictos icon font isn't available** (it's commercial), so icons sheets draw with it show as their plain letters (`y`, `t`, `&`, ...). A per-sheet CSS patch can swap them for Unicode symbols (see `patches/bladesinthedark.css`).

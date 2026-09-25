@@ -36,6 +36,16 @@
     }
   }
 
+  const INNERMOST_INLINE_ROLL_RE = /\[\[([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*)\]\]/;
+  function flattenNestedInlineRolls(f) {
+    let prev;
+    do {
+      prev = f;
+      f = f.replace(INNERMOST_INLINE_ROLL_RE, (_, inner) => "(" + inner.trim() + ")");
+    } while (f !== prev);
+    return f;
+  }
+
   function translateFormula(formula, attributes) {
     attributes = attributes || {};
     if (typeof formula !== "string" || !formula.trim()) {
@@ -53,11 +63,10 @@
     const wrapped = f.match(OUTER_WRAP_RE);
     if (wrapped) f = wrapped[1].trim();
 
-    if (f.includes("[[")) {
-      throw new Roll20FormulaError(
-        `translateFormula: "${formula}" contains a nested inline roll ("[[...]]") this translator doesn't support.`
-      );
-    }
+    // A nested inline roll (Cyberpunk 2020: [[1d10!! + [[@{Ref}]] ]]) is
+    // rolled first in Roll20 and its total added in — the same total as
+    // rolling it as a parenthesised part of the outer formula.
+    f = flattenNestedInlineRolls(f);
 
     f = f.replace(COMMENT_RE, "").trim();
 
@@ -189,7 +198,12 @@
     // bound should race this against their own timeout.
     async function fireRoll(formula, attributes) {
       const resolvedAttrs = attributes ?? (await resolveFormulaAttrs(formula));
-      const translated = translateFormula(formula, resolvedAttrs);
+      // Same Roll20-vs-platform dice modifier translation as roll messages
+      // (a plain 1d20cs>19 button would otherwise post a success count) —
+      // applied after @{attr} substitution, so a range like cs>@{crit} counts.
+      const E = global.Roll20Compat?.RollTemplateEngine;
+      const substituted = translateFormula(formula, resolvedAttrs);
+      const translated = E ? E.splitRollModifiers(substituted).formula : substituted;
       const nonce = generateNonce();
       const result = new Promise((resolve, reject) => {
         pending.set(nonce, { resolve, reject });
@@ -198,31 +212,152 @@
       return result;
     }
 
-    // startRoll(formula, cb) — Roll20's real cb receives a Roll20-internal
-    // "results" structure this platform doesn't produce (see the plan's
-    // "known approximation" section). Approximated here as the backend's own
-    // RollDefinition shape directly, plus rollId for finishRoll to echo back —
-    // close enough for a worker script that reads .result / .rolled / .dices,
-    // not a byte-for-byte match of Roll20's internal roll1/roll2 keying.
-    function startRoll(formula, cb) {
-      fireRoll(formula)
-        .then((roll) => cb(roll))
+    // ── Roll messages: templates, several inline rolls, startRoll/finishRoll ──
+    //
+    // "&{template:x} {{a=[[1d20]]}} {{b=[[2d6]]}}" — Roll20's roll message —
+    // goes through the roll template engine (tools/rollTemplateEngine.mjs,
+    // exposed by the render shell) and the platform's roll-now-post-later API:
+    // every inline roll of the message is evaluated in ONE CardAPI.Rolls.Start
+    // call, and CardAPI.Rolls.Finish posts one chat message whose numbers the
+    // server fills in from its own results. Without the engine or that API (an
+    // older platform), everything falls back to the single-formula /roll path.
+    const MAX_PENDING_ROLLS = 50;
+    const pendingRolls = new Map(); // server rollId -> prepared message, until finishRoll
+    const engine = () => global.Roll20Compat?.RollTemplateEngine;
+    const sheetInfo = () => global.Roll20Compat?.SheetInfo ?? {};
+    const canRollMessages = () => !!(engine() && cardApi.Rolls);
+    const translate = (key) => {
+      const value = typeof global.getTranslationByKey === "function" ? global.getTranslationByKey(key) : null;
+      return value || key;
+    };
+
+    // The backend's RollDefinition, reduced to what the template helpers and
+    // a sheet script need.
+    const toEngineRoll = (roll) => ({
+      result: roll?.result ?? 0,
+      dice: (roll?.dices ?? []).map((d) => ({ sides: d.diceValue, result: d.result, kept: d.kept !== false })),
+    });
+
+    async function prepareRollMessage(message) {
+      const E = engine();
+      const values = {};
+      await Promise.all(
+        E.attributeRefs(message).map(async (name) => {
+          const prop = await cardApi.Properties.Get(name);
+          values[name] = prop?.value;
+        })
+      );
+      let text = E.resolveAttributeRefs(message, values);
+      const ask = global.Roll20Compat?.RollQueries?.ask;
+      if (ask) {
+        text = await ask(text);
+        if (text === null) return null; // the player cancelled a ?{...} question
+      }
+
+      const parsed = E.parseRollMessage(text);
+      const extracted = E.extractInlineRolls(parsed);
+      // Rolls.Finish needs a roll session even for a message with no inline
+      // rolls (plain template text), so such a message rolls a constant 0.
+      // Roll20 cs/cf critical ranges and >N target numbers mean something
+      // else to the platform's dice engine — see splitRollModifiers.
+      const critById = {};
+      const formulas = extracted.rolls.length
+        ? extracted.rolls.map((r) => {
+            const split = E.splitRollModifiers(r.formula);
+            critById[r.id] = split.crit;
+            return { key: r.id, formula: translateFormula(split.formula, {}) };
+          })
+        : [{ key: "none", formula: "0" }];
+      const started = await cardApi.Rolls.Start(formulas);
+
+      const rolls = {};
+      for (const { key, roll } of started.results ?? []) rolls[key] = { ...toEngineRoll(roll), crit: critById[key] ?? null };
+      const prepared = { rollId: started.rollId, parsed, extracted, rolls, formulas };
+
+      if (pendingRolls.size >= MAX_PENDING_ROLLS) pendingRolls.delete(pendingRolls.keys().next().value);
+      pendingRolls.set(started.rollId, prepared);
+      return prepared;
+    }
+
+    // Roll20's startRoll callback shape: results keyed by FIELD name (the
+    // field's first inline roll), e.g. results.results.result.result.
+    function scriptResults(prepared) {
+      const results = {};
+      for (const [fieldKey, id] of Object.entries(prepared.extracted.fieldRolls)) {
+        const roll = prepared.rolls[id];
+        const formula = prepared.extracted.rolls.find((r) => r.id === id)?.formula;
+        if (!roll) continue;
+        results[fieldKey] = {
+          result: roll.result,
+          dice: roll.dice.filter((d) => d.kept).map((d) => d.result),
+          expression: formula,
+        };
+      }
+      return { rollId: prepared.rollId, results };
+    }
+
+    async function postRollMessage(prepared, computed) {
+      pendingRolls.delete(prepared.rollId);
+      const E = engine();
+      const info = sheetInfo();
+      const { template } = prepared.parsed;
+      let html;
+      if (template) {
+        const own = info.rollTemplates?.[template];
+        html = E.renderRollTemplate(own ?? E.DEFAULT_TEMPLATE_HTML, {
+          name: own ? template : "default",
+          fields: prepared.extracted.fields,
+          fieldRolls: prepared.extracted.fieldRolls,
+          rolls: prepared.rolls,
+          computed: computed ?? {},
+          translate,
+        });
+      } else {
+        html = E.renderPlainRollMessage(prepared.extracted.text, translate, prepared.rolls);
+      }
+      await cardApi.Rolls.Finish({
+        rollId: prepared.rollId,
+        html,
+        cssResourceKey: info.rollTemplateCssKey || undefined,
+      });
+    }
+
+    /** A roll button's whole value (template and/or several inline rolls): roll and post. */
+    async function rollMessage(message) {
+      const prepared = await prepareRollMessage(message);
+      if (prepared) await postRollMessage(prepared, {});
+    }
+
+    // startRoll(message, cb) — evaluates every inline roll of the message on
+    // the server WITHOUT posting, then hands the sheet script Roll20-shaped
+    // results: { rollId, results: { <field>: { result, dice, expression } } }.
+    function startRoll(message, cb) {
+      if (!canRollMessages()) {
+        fireRoll(message)
+          .then((roll) => cb(roll))
+          .catch((err) => console.error("startRoll: roll failed", err));
+        return;
+      }
+      prepareRollMessage(message)
+        .then((prepared) => {
+          if (prepared) cb(scriptResults(prepared));
+        })
         .catch((err) => console.error("startRoll: roll failed", err));
     }
 
-    // finishRoll(rollId, output) — real Roll20 uses `output` to customize the
-    // roll-template shown in chat (e.g. "3 successes" derived from the raw
-    // dice, replacing the raw total). This platform's chat rendering has no
-    // per-call template override hook, so the raw roll from fireRoll() is
-    // already displayed and can't be replaced after the fact. Rather than
-    // silently discarding a worker script's computed output (wrong number
-    // shown, no indication anything was lost), a non-empty `output` posts a
-    // second, clearly-labeled chat line — visibly incomplete beats silently
-    // wrong. Revisit if deliverable C validation finds a sheet that leans on
-    // this pattern heavily enough to warrant an actual template-override hook.
-    function finishRoll(_rollId, output) {
-      if (!output || typeof output !== "object" || Object.keys(output).length === 0) return;
-      const summary = Object.entries(output)
+    // finishRoll(rollId, computed) — posts the roll's template with the
+    // script's computed values ({{computed::key}} in the template). The dice
+    // numbers shown are the server's, whatever the script computed.
+    function finishRoll(rollId, computed) {
+      const prepared = pendingRolls.get(rollId);
+      if (prepared) {
+        postRollMessage(prepared, computed).catch((err) => console.error("finishRoll: posting the roll failed", err));
+        return;
+      }
+      // A roll made through the fallback /roll path: it's already in chat,
+      // so computed values can only follow as a plain line.
+      if (!computed || typeof computed !== "object" || Object.keys(computed).length === 0) return;
+      const summary = Object.entries(computed)
         .map(([key, value]) => `${key}: ${value}`)
         .join(", ");
       cardApi.SendChatMessage(`${summary}`);
@@ -233,9 +368,11 @@
 
     return {
       fireRoll,
+      rollMessage: (message) => (canRollMessages() ? rollMessage(message) : null),
       destroy: () => {
         cardApi.UnsubscribeWebSocket(onMessage);
         pending.clear();
+        pendingRolls.clear();
       },
     };
   }

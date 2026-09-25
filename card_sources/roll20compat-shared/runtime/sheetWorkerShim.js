@@ -186,15 +186,49 @@
     // happened would see permanently empty arrays.
     const lastFired = {}; // "name" | "section/rowId/field" -> last-seen value
 
+    // Values this client's own setAttrs() is writing, by change key — so the
+    // change event their echo fires reports sourceType "sheetworker" rather
+    // than "player", like Roll20. Consumed by the first matching change.
+    const workerWrites = new Map();
+
+    // Each sheet listener runs on its own: one handler throwing (e.g. calling
+    // a Roll20 API this runtime doesn't have) must not stop the others
+    // registered for the same event, which is what a sheet's other features
+    // silently depended on.
+    function runListener(cb, eventInfo, what) {
+      try {
+        cb(eventInfo);
+      } catch (err) {
+        console.error(`Roll20Compat: a sheet worker ${what} handler failed`, err);
+      }
+    }
+
+    // Roll20's eventInfo: newValue/previousValue/sourceType/triggerName on
+    // top of sourceAttribute (sheets read all of them — Warhammer Fantasy
+    // Roleplay 4e's on("change:species", e => changeSpecies(e.newValue))
+    // threw without newValue). For a repeating field, sourceAttribute and
+    // triggerName are the full "repeating_<section>_<rowId>_<field>" name —
+    // sheets commonly parse the row id out of it.
     function fireChange(key, value, eventInfo) {
       if (lastFired[key] === value) return;
+      const previousValue = lastFired[key];
       lastFired[key] = value;
+      const written = workerWrites.get(key);
+      const fromWorker = written !== undefined && written === String(value ?? "");
+      if (fromWorker) workerWrites.delete(key);
+      eventInfo = {
+        ...eventInfo,
+        newValue: value,
+        previousValue,
+        sourceType: fromWorker ? "sheetworker" : "player",
+        triggerName: eventInfo.sourceAttribute,
+      };
       for (const { spec, cb } of listeners.change) {
         const matches =
           spec.section != null
             ? spec.section === eventInfo.section && (spec.attr == null || spec.attr === eventInfo.name)
             : spec.attr === eventInfo.name && eventInfo.section == null;
-        if (matches) cb(eventInfo);
+        if (matches) runListener(cb, eventInfo, "change");
       }
     }
 
@@ -236,14 +270,14 @@
           for (const [field, value] of Object.entries(item.fields || {})) {
             const key = `${section}/${id}/${field}`;
             if (!prevItem || prevItem.fields?.[field] !== value) {
-              fireChange(key, value, { name: field, sourceAttribute: field, section, rowId: id });
+              fireChange(key, value, { name: field, sourceAttribute: `repeating_${section}_${id}_${field}`, section, rowId: id });
             }
           }
         }
         for (const [id] of prevById) {
           if (!nextById.has(id)) {
             for (const { spec, cb } of listeners.remove) {
-              if (spec.section === section) cb({ section, rowId: id });
+              if (spec.section === section) runListener(cb, { section, rowId: id }, "remove");
             }
           }
         }
@@ -346,6 +380,11 @@
         }
       }
 
+      for (const [key, value] of Object.entries(values)) {
+        const parsed = parseRepeatingKey(key, knownSections);
+        workerWrites.set(parsed ? `${parsed.section}/${parsed.rowId}/${parsed.field}` : key, String(value ?? ""));
+      }
+
       await Promise.all(
         Object.entries(plain).map(([name, value]) => cardApi.Properties.Set(name, value))
       );
@@ -435,7 +474,7 @@
     function dispatchSheetOpened() {
       if (sheetOpenedFired) return;
       sheetOpenedFired = true;
-      listeners["sheet:opened"].forEach(({ cb }) => cb({}));
+      listeners["sheet:opened"].forEach(({ cb }) => runListener(cb, {}, "sheet:opened"));
     }
     Promise.all([
       translationReady,
@@ -458,7 +497,7 @@
         ? `clicked:repeating_${extra.section}_${extra.rowId}_${actionName}`
         : `clicked:${actionName}`;
       for (const { spec, cb } of listeners.clicked) {
-        if (spec.action.toLowerCase() === target.toLowerCase()) cb({ ...extra, triggerName });
+        if (spec.action.toLowerCase() === target.toLowerCase()) runListener(cb, { ...extra, triggerName }, "clicked");
       }
     }
 
@@ -478,6 +517,19 @@
     global.removeRepeatingRow = removeRepeatingRow;
     global.getTranslationByKey = getTranslationByKey;
     global.$20 = $20;
+    // Roll20's Compendium API. There is no compendium here, so a lookup
+    // never completes — the callback is never called, exactly as if the page
+    // didn't exist yet — rather than being handed an empty page that sheet
+    // code dereferences (Warhammer Fantasy Roleplay 4e reads
+    // page.data.Skills.Fixed straight away). 22 corpus sheets call these.
+    let compendiumNoted = false;
+    const noCompendium = (request) => {
+      if (compendiumNoted) return;
+      compendiumNoted = true;
+      console.info(`Roll20Compat: the sheet asked Roll20's Compendium for "${request}" — no compendium is available, so compendium-driven auto-fill is skipped.`);
+    };
+    global.getCompendiumPage = (request) => noCompendium(request);
+    global.getCompendiumQuery = (request) => noCompendium(request);
 
     return {
       dispatchClicked,

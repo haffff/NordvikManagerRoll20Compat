@@ -1,4 +1,5 @@
 import { assembleRenderableDocument, renderDocument } from "./roll20Assembly.js";
+import * as RollTemplateEngine from "../../roll20compat-shared/tools/rollTemplateEngine.mjs";
 
 // Render shell cloned into every Template a GM imports via the "Roll20 Sheet
 // Importer" view (see addon_files/Actions/create_imported_template.json) —
@@ -52,6 +53,17 @@ async function run(Api) {
     showMessage("Stored sheet content is corrupted: " + (e?.message ?? e));
     return;
   }
+
+  // The runtime's chat-roll pipeline (runtime/rollDispatch.js) reads these —
+  // window globals survive renderDocument's in-place swap. Sheets imported
+  // before roll templates were kept have no rollTemplates: their rolls use
+  // Roll20's default template, unstyled by sheet CSS, until re-imported.
+  const Roll20Compat = (window.Roll20Compat = window.Roll20Compat || {});
+  Roll20Compat.RollTemplateEngine = RollTemplateEngine;
+  Roll20Compat.SheetInfo = {
+    rollTemplates: stored.rollTemplates ?? {},
+    rollTemplateCssKey: stored.rollTemplates ? "roll20compat_rtcss_" + contentId : null,
+  };
 
   renderDocument(assembleRenderableDocument(stored));
 }

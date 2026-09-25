@@ -92,6 +92,58 @@ async function main() {
   const rowsAfter = await rows.count();
   check("clicking +Add adds a repeating row", rowsAfter === rowsBefore + 1, { rowsBefore, rowsAfter });
 
+  // Clicking a characteristic makes the sheet's own script call startRoll()
+  // with its imtest roll template, compute from the results, and
+  // finishRoll(). That used to fail outright — the whole message went through
+  // the single-formula /roll path.
+  await frame.click('button[name="act_str"]');
+  const finishedRoll = async (n) => {
+    for (let i = 0; i < 30; i++) {
+      const all = await frame.evaluate(() => window.__sandboxLog.filter((e) => e.kind === "Rolls.Finish").map((e) => e.detail));
+      if (all.length >= n) return all[n - 1];
+      await page.waitForTimeout(100);
+    }
+    return null;
+  };
+  const finished = await finishedRoll(1);
+  const rollCounts = await frame.evaluate(() => ({ start: window.__apiCounts["Rolls.Start"], finish: window.__apiCounts["Rolls.Finish"] }));
+  check(
+    "clicking Str rolls every inline roll of the sheet's roll message in ONE Rolls.Start and posts ONE Rolls.Finish",
+    rollCounts.start === 1 && rollCounts.finish === 1,
+    rollCounts
+  );
+  check(
+    "the posted roll is the sheet's own imtest template with server-filled roll placeholders, the script's computed text and the template CSS key",
+    !!finished &&
+      finished.html.startsWith('<div class="sheet-rolltemplate-imtest">') &&
+      finished.html.includes("data-roll-key=") &&
+      finished.html.includes("Test adjusted to") &&
+      finished.cssResourceKey === "roll20compat_rtcss_sandbox-imported-template",
+    finished && { html: finished.html.slice(0, 300), cssResourceKey: finished.cssResourceKey }
+  );
+
+  // A script's startRoll() message with a ?{...} question (the error seen
+  // live: "unresolved roll query") — asked in the dialog, answered, and the
+  // answer reaches the rolled formula; the callback gets Roll20-shaped results.
+  await frame.evaluate(() => {
+    startRoll("&{template:imtest} {{name=Test}} {{result=[[1d100+?{Bonus|5}]]}}", (r) => {
+      window.__startRollResults = r;
+      finishRoll(r.rollId, { result: r.results.result.result });
+    });
+  });
+  const dialog = frame.locator(".r20c-query-overlay");
+  await dialog.waitFor({ timeout: 5000 });
+  await dialog.locator("input").fill("7");
+  await dialog.locator("button", { hasText: "Roll" }).click();
+  const second = await finishedRoll(2);
+  const scriptResults = await frame.evaluate(() => window.__startRollResults ?? null);
+  check(
+    "startRoll() asks a message's ?{...} question in the dialog, rolls the answered formula (1d100+7 = 57 with sandbox dice) and gives the script { rollId, results: { result: { result, dice, expression } } }",
+    scriptResults?.rollId && scriptResults.results?.result?.result === 57 &&
+      scriptResults.results.result.expression === "1d100+7" && !!second && second.rollId === scriptResults.rollId,
+    { scriptResults, secondRollId: second?.rollId }
+  );
+
   check(`no console errors (${consoleErrors.length} found)`, consoleErrors.length === 0, consoleErrors);
 
   // An action button inside a row added AFTER load must reach the sheet's

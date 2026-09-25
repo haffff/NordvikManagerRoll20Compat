@@ -37,6 +37,17 @@ class Roll20FormulaError extends Error {
  * @returns {string} a formula the backend DiceEngine can evaluate directly
  * @throws {Roll20FormulaError} on unresolved queries, missing attributes, or unsupported constructs
  */
+const INNERMOST_INLINE_ROLL_RE = /\[\[([^[\]]*(?:\[[^[\]]*\][^[\]]*)*)\]\]/;
+
+export function flattenNestedInlineRolls(f) {
+  let prev;
+  do {
+    prev = f;
+    f = f.replace(INNERMOST_INLINE_ROLL_RE, (_, inner) => "(" + inner.trim() + ")");
+  } while (f !== prev);
+  return f;
+}
+
 export function translateFormula(formula, attributes = {}) {
   if (typeof formula !== "string" || !formula.trim()) {
     throw new Roll20FormulaError("translateFormula: empty formula.");
@@ -53,22 +64,15 @@ export function translateFormula(formula, attributes = {}) {
   const wrapped = f.match(OUTER_WRAP_RE);
   if (wrapped) f = wrapped[1].trim();
 
-  // Reject remaining nested inline-rolls BEFORE comment-stripping — COMMENT_RE
-  // is a single-bracket pattern ([^[\]]*) that can't tell a genuine
-  // "[Attack Roll]" comment from the inner "[2d6]" of an unsupported
-  // "1d20+[[2d6]]" nested roll (that "[[" fails to match as one token, but
-  // the regex just re-tries and matches the inner "[2d6]" as if it were a
-  // comment, silently mangling the formula to "1d20+[]" instead of rejecting
-  // it). Checking here, on the untouched string, avoids that trap entirely.
-  if (f.includes("[[")) {
-    throw new Roll20FormulaError(
-      `translateFormula: "${formula}" contains a nested inline roll ("[[...]]") this translator doesn't support. ` +
-        `Compute the effective formula in JS first and pass a plain supported dice string instead.`
-    );
-  }
+  // A nested inline roll (Cyberpunk 2020: [[1d10!! + [[@{Ref}]] ]]) is
+  // rolled first in Roll20 and its total added in — the same total as
+  // rolling it as a parenthesised part of the outer formula. Flattened
+  // BEFORE comment-stripping: COMMENT_RE is single-bracket and would read
+  // the inner "[2d6]" of "1d20+[[2d6]]" as a comment.
+  f = flattenNestedInlineRolls(f);
 
   // Roll20 comment annotations, e.g. "1d20 [Attack Roll]" -> "1d20". Safe now
-  // that we know no "[[" is present.
+  // that nested rolls are flattened.
   f = f.replace(COMMENT_RE, "").trim();
 
   // Attribute substitution happens BEFORE the curly-brace check below —

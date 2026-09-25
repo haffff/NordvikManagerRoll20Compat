@@ -12,6 +12,8 @@
 import {
   splitWorkerScript,
   expandSelfClosingTags,
+  extractRollTemplates,
+  extractRollTemplateCss,
   stripRollTemplates,
   stripLocalLinks,
   prefixSheetClasses,
@@ -19,6 +21,7 @@ import {
   buildTranslationConfigScript,
   injectConfigScript,
 } from "../../roll20compat-shared/tools/sheetTransform.mjs";
+import { ROLL20_CHAT_BASE_CSS } from "../../roll20compat-shared/tools/rollTemplateEngine.mjs";
 
 /**
  * Runs the upload-time transform pipeline
@@ -33,7 +36,15 @@ import {
  */
 export function transformUpload({ rawHtml, ownCss, translationJsonText }) {
   const { mainHtml: splitHtml, workerJs } = splitWorkerScript(rawHtml);
-  let mainHtml = wrapCharsheet(stripLocalLinks(stripRollTemplates(prefixSheetClasses(expandSelfClosingTags(splitHtml), ownCss ?? ""))));
+  const expandedHtml = expandSelfClosingTags(splitHtml);
+  let mainHtml = wrapCharsheet(stripLocalLinks(stripRollTemplates(prefixSheetClasses(expandedHtml, ownCss ?? ""))));
+
+  // Roll templates leave the sheet markup but are kept for chat rolls (see
+  // rollTemplateEngine.mjs), along with just their CSS — stored once per
+  // sheet as its own resource, so chat messages reference it by key instead
+  // of each carrying the whole sheet stylesheet.
+  const rollTemplates = extractRollTemplates(expandedHtml, ownCss ?? "");
+  const rollTemplateCss = extractRollTemplateCss(ownCss ?? "", ROLL20_CHAT_BASE_CSS);
 
   if (translationJsonText) {
     const translationBundle = JSON.parse(translationJsonText);
@@ -48,5 +59,5 @@ export function transformUpload({ rawHtml, ownCss, translationJsonText }) {
     mainHtml = injectConfigScript(mainHtml, configScript);
   }
 
-  return { mainHtml, workerJs, sheetCss: ownCss || null };
+  return { mainHtml, workerJs, sheetCss: ownCss || null, rollTemplates, rollTemplateCss };
 }

@@ -227,7 +227,19 @@
    */
   function install(root, rollDispatchApi, shimApi) {
     const onRoll = (btn) => {
-      const formula = extractRollFormula(btn.getAttribute("value"));
+      const value = btn.getAttribute("value") ?? "";
+      // A roll template or several inline rolls: the whole message goes
+      // through rollDispatch's roll-message pipeline (one server batch, one
+      // chat message rendered from the sheet's own template). A single
+      // formula keeps the platform's own /roll display.
+      if ((/&\{template:/.test(value) || (value.match(/\[\[/g) || []).length > 1) && rollDispatchApi.rollMessage) {
+        const run = rollDispatchApi.rollMessage(value);
+        if (run) {
+          run.catch((err) => console.error(`rollButtons: roll failed for button value "${value}"`, err));
+          return;
+        }
+      }
+      const formula = extractRollFormula(value);
       if (!formula) return;
       askQueries(formula)
         .then((resolved) => (resolved === null ? null : rollDispatchApi.fireRoll(resolved)))
@@ -270,4 +282,7 @@
   }
 
   Roll20Compat.RollButtons = { install };
+  // The ?{...} dialog, for roll messages that don't come from a button —
+  // a sheet script's startRoll() (see rollDispatch.js).
+  Roll20Compat.RollQueries = { ask: askQueries };
 })(typeof window !== "undefined" ? window : globalThis);

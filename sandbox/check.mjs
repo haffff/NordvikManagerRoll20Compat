@@ -132,6 +132,9 @@ async function checkSheet(browser, key, folder) {
         authoredDefault = baseline.value;
         liveValue = el.value || "";
       }
+      // The sheet's own script wrote this field (a translated label, a
+      // version migration): showing that instead is Roll20's behaviour.
+      if ((window.__sandboxWritten || []).includes(el.getAttribute("name").slice(5))) return;
       if (authoredDefault && liveValue !== authoredDefault) {
         missing.push({ name: el.getAttribute("name"), authoredDefault, liveValue });
       }

@@ -82,7 +82,7 @@ export const App = ({ Api }) => {
   const canSubmit = phase === "form" && (uploadReady || browseReady) && KEY_RE.test(key) && displayName.trim().length > 0;
 
   const finishImport = async ({ rawHtml, ownCss, translationJsonText }) => {
-    const { mainHtml, workerJs, sheetCss } = transformUpload({ rawHtml, ownCss, translationJsonText });
+    const { mainHtml, workerJs, sheetCss, rollTemplates, rollTemplateCss } = transformUpload({ rawHtml, ownCss, translationJsonText });
     const name = displayName.trim();
     const jobId = crypto.randomUUID().replace(/-/g, "");
 
@@ -95,7 +95,17 @@ export const App = ({ Api }) => {
       );
     }
 
-    const stored = { key, displayName: name, mainHtml, workerJs, sheetCss };
+    // Stored before the sheet itself, so any card that can render the sheet
+    // can also style its chat rolls (the render shell derives this key from
+    // the same template id — see sheetrenderer/src/main.js).
+    await Api.Resources.Global.Upsert(
+      `roll20compat_rtcss_${templateId}`,
+      rollTemplateCss,
+      "rolltemplates.css",
+      "text/css"
+    );
+
+    const stored = { key, displayName: name, mainHtml, workerJs, sheetCss, rollTemplates };
     await Api.Resources.Global.Upsert(
       `roll20compat_sheet_${templateId}`,
       JSON.stringify(stored),

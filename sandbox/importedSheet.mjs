@@ -74,8 +74,8 @@ export function readCorpusSheet(folder) {
 
 /** The exact payload the importer view stores for this sheet (see App.jsx's finishImport). */
 export function importedPayload(key, folder) {
-  const { mainHtml, workerJs, sheetCss } = transformUpload(readCorpusSheet(folder));
-  return { key, displayName: folder, mainHtml, workerJs, sheetCss };
+  const { mainHtml, workerJs, sheetCss, rollTemplates, rollTemplateCss } = transformUpload(readCorpusSheet(folder));
+  return { key, displayName: folder, mainHtml, workerJs, sheetCss, rollTemplates, rollTemplateCss };
 }
 
 // ── Built-card assembly (reads packed/, pack-cards.mjs's output) ──────────

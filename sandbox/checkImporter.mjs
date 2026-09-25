@@ -136,6 +136,15 @@ window.addEventListener('DOMContentLoaded', () => {
       typeof storedPayload.mainHtml === "string" && storedPayload.mainHtml.length > 0
     );
     check("stored payload carries the GM-supplied key (used for patch matching)", storedPayload.key === "numenera_e2e");
+    check(
+      "stored payload keeps the sheet's roll templates (an object by template name) for chat rolls",
+      storedPayload.rollTemplates && typeof storedPayload.rollTemplates === "object" && !Array.isArray(storedPayload.rollTemplates)
+    );
+    const cssUpsert = captured.globalUpserts.find((u) => u.key === `roll20compat_rtcss_${FAKE_TEMPLATE_ID}`);
+    check(
+      "the roll templates' CSS is stored ONCE as its own text/css resource (with Roll20's inline-roll styles), not per chat message",
+      !!cssUpsert && cssUpsert.mimeType === "text/css" && String(cssUpsert.data).includes(".inlinerollresult")
+    );
   } else {
     failures++;
     console.error("FAIL stored payload has real transformed HTML content (no upsert captured)");

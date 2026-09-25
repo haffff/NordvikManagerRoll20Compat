@@ -49,8 +49,12 @@ function toBase64Utf8(str) {
   return btoa(binary);
 }
 
+// The bytes are UTF-8, so the URI must say so: without a charset the browser
+// decodes a data: script or stylesheet with the page's fallback encoding
+// (windows-1250 on a Polish system), turning every non-ASCII character —
+// accented labels in a sheet's own script included — into mojibake.
 function dataUri(mimeType, text) {
-  return `data:${mimeType};base64,${toBase64Utf8(text)}`;
+  return `data:${mimeType};charset=utf-8;base64,${toBase64Utf8(text)}`;
 }
 
 /**

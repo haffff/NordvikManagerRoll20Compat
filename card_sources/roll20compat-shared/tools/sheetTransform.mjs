@@ -324,15 +324,18 @@ function blockEnd(css, openIdx) {
   return css.length;
 }
 
-/** Scopes every rule's selectors under .charsheet the way Roll20 serves sheet CSS. */
-export function scopeSheetCss(css) {
-  let out = "";
+// Splits CSS into its top-level statements, in order, without interpreting
+// them: { kind: "trivia" } for whitespace/comments, { kind: "statement" } for
+// "@import ...;" or stray text, { kind: "block", prelude, body } for a rule or
+// an at-rule block. Every entry carries its original `raw` text, so
+// concatenating the raws gives back the input exactly.
+function cssStatements(css) {
+  const out = [];
   let i = 0;
   while (i < css.length) {
-    // Copy whitespace and comments through unchanged.
     const ws = /^(?:\s+|\/\*[\s\S]*?(?:\*\/|$))+/.exec(css.slice(i));
     if (ws) {
-      out += ws[0];
+      out.push({ kind: "trivia", raw: ws[0] });
       i += ws[0].length;
       continue;
     }
@@ -348,25 +351,82 @@ export function scopeSheetCss(css) {
       else if (ch === "/" && css[j + 1] === "*") j = Math.max(j, css.indexOf("*/", j + 2) + 1 || css.length);
       else if (ch === "{" || ch === ";" || ch === "}") break;
     }
-    const prelude = css.slice(i, j);
     if (j >= css.length || css[j] === ";" || css[j] === "}") {
-      // Statement at-rule (@import ...;) or stray text — copied verbatim.
-      out += css.slice(i, j + 1);
+      out.push({ kind: "statement", raw: css.slice(i, j + 1) });
       i = j + 1;
       continue;
     }
     const end = blockEnd(css, j);
-    const body = css.slice(j + 1, end - 1);
-    if (prelude.trim().startsWith("@")) {
-      out += NESTING_AT_RULE_RE.test(prelude.trim())
-        ? `${prelude}{${scopeSheetCss(body)}}`
-        : css.slice(i, end);
-    } else {
-      out += `${scopeSelectorList(prelude)}{${body}}`;
-    }
+    out.push({ kind: "block", raw: css.slice(i, end), prelude: css.slice(i, j), body: css.slice(j + 1, end - 1) });
     i = end;
   }
   return out;
+}
+
+/** Scopes every rule's selectors under .charsheet the way Roll20 serves sheet CSS. */
+export function scopeSheetCss(css) {
+  return cssStatements(css)
+    .map((s) => {
+      if (s.kind !== "block") return s.raw;
+      if (s.prelude.trim().startsWith("@")) {
+        return NESTING_AT_RULE_RE.test(s.prelude.trim()) ? `${s.prelude}{${scopeSheetCss(s.body)}}` : s.raw;
+      }
+      return `${scopeSelectorList(s.prelude)}{${s.body}}`;
+    })
+    .join("");
+}
+
+// Roll templates render in chat, outside the sheet — so their styles are cut
+// out of the sheet's RAW (never .charsheet-scoped) CSS once at import and
+// stored as their own small resource, instead of every chat message carrying
+// the whole sheet stylesheet (Warhammer Fantasy Roleplay 4e's is 99 KB):
+// @import/@font-face (fonts the templates use) come first, then every rule
+// whose selector mentions a roll template or an inline roll result, including
+// those inside @media and friends. Then Roll20's own chat styles
+// (rollTemplateEngine.mjs's ROLL20_CHAT_BASE_CSS) that sheets rely on.
+const TEMPLATE_SELECTOR_RE = /rolltemplate|inlinerollresult/i;
+
+export function extractRollTemplateCss(css, baseCss = "") {
+  const fonts = [];
+  const pickRules = (source) =>
+    cssStatements(source)
+      .map((s) => {
+        if (s.kind === "statement") {
+          if (/^\s*@import\b/i.test(s.raw)) fonts.push(s.raw.trim());
+          return "";
+        }
+        if (s.kind !== "block") return "";
+        const prelude = s.prelude.trim();
+        if (/^@font-face\b/i.test(prelude)) {
+          fonts.push(s.raw.trim());
+          return "";
+        }
+        if (prelude.startsWith("@")) {
+          if (!NESTING_AT_RULE_RE.test(prelude)) return "";
+          const inner = pickRules(s.body);
+          return inner ? `${prelude}{${inner}}\n` : "";
+        }
+        return TEMPLATE_SELECTOR_RE.test(prelude) ? `${s.raw.trim()}\n` : "";
+      })
+      .join("");
+  const rules = pickRules(String(css ?? ""));
+  return [...fonts, baseCss.trim(), rules.trim()].filter(Boolean).join("\n");
+}
+
+// Each <rolltemplate class="sheet-rolltemplate-NAME">...</rolltemplate>
+// becomes { NAME: innerHtml } for the chat roll pipeline (see
+// rollTemplateEngine.mjs). Legacy sheets style template content by prefixed
+// class too — Imperium Maledictum's template says class="container" while its
+// CSS targets .sheet-rolltemplate-imtest .sheet-container — so each template
+// gets the same prefixSheetClasses treatment as the sheet itself.
+const ROLLTEMPLATE_BLOCK_RE = /<rolltemplate\b[^>]*\bclass\s*=\s*["'][^"']*\bsheet-rolltemplate-([A-Za-z0-9_-]+)[^"']*["'][^>]*>([\s\S]*?)<\/rolltemplate>/gi;
+
+export function extractRollTemplates(html, css = "") {
+  const templates = {};
+  for (const m of String(html ?? "").matchAll(ROLLTEMPLATE_BLOCK_RE)) {
+    templates[m[1]] = prefixSheetClasses(m[2].trim(), css);
+  }
+  return templates;
 }
 
 // A sheet authored as a standalone preview page (13th Age Glorantha, the

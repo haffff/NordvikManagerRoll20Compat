@@ -1,0 +1,29 @@
+{
+  "name": "fetch_github_file",
+  "hook": 0,
+  "prefix": "roll20compat",
+  "isEnabled": true,
+  "content": [
+    {
+      "id": "c2c2c2c2-0d00-4a00-8a00-000000000001",
+      "Data": {
+        "Label": "Fetch one raw file from GitHub",
+        "TargetUrl": "%url%",
+        "HttpMethod": "GET",
+        "Output": "output"
+      },
+      "Type": "SendRequest"
+    },
+    {
+      "id": "c2c2c2c2-0d00-4a00-8a00-000000000002",
+      "Data": {
+        "Label": "Cache it as a game resource under the caller-supplied key",
+        "Key": "%resourceKey%",
+        "Name": "%resourceKey%",
+        "Content": "%v:output.responseBody%",
+        "MimeType": "%mimeType%"
+      },
+      "Type": "SetResource"
+    }
+  ]
+}

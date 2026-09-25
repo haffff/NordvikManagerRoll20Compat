@@ -1,0 +1,78 @@
+/* Blades in the Dark authors several icon glyphs against Roll20's
+ * platform-level "Pictos" icon font (font-family: pictos, remapping plain
+ * ASCII characters like "y", "&", "(" to icon glyphs via the font's own
+ * private character table). Pictos is a commercial font (pictos.cc) — not
+ * bundled here, and not something this project can legally extract from a
+ * real Roll20 page and redistribute (see roll20-base.css's own note).
+ * Without it, these elements fall back to their literal authored
+ * characters — confirmed live: the settings cog showed as "y", the
+ * repeating-section "+Add" button's icon showed as "&".
+ *
+ * This patch replaces just the specific elements confirmed live so far
+ * with plain, universally-supported Unicode symbols instead of a real
+ * icon font — same approach repeatingBinding.js's own delete button
+ * ("✕") already takes. Loads AFTER the sheet's own CSS (see
+ * roll20compat-sheetrenderer's roll20Assembly.js, which matches patches
+ * by the key the GM gave the sheet on import), so these selectors
+ * (matched character-for-character against the sheet's own rules) win on
+ * cascade order without needing !important.
+ */
+
+/* Settings gear (.topholder .settings-checkbox span, authored as the
+ * single character "y" in bladesinthedark_index.html). */
+.charsheet .settings-checkbox span {
+  font-family: initial;
+  font-size: 0;
+}
+.charsheet .settings-checkbox span::before {
+  content: "\2699"; /* GEAR */
+  font-family: initial;
+  font-size: 16px;
+}
+
+/* Repeating-section "+Add" button (repeatingBinding.js's own generated
+ * button, textContent "+Add") — the sheet's own
+ * ".repcontrol button { font-size: 0; font-family: pictos }" rule hides
+ * that text entirely and relies on a companion ::after rule (content: "&")
+ * to show a pictos-remapped icon instead. Restoring font-size makes the
+ * button's own "+Add" text legible again; the ::after rule's content is
+ * suppressed entirely (not remapped to its own icon glyph) so the result
+ * is a clean "+Add", not a duplicated "+Add&"/"+Add+". */
+.charsheet .repcontrol button.repcontrol_add {
+  font-family: initial;
+  font-size: 14px;
+}
+.charsheet .repcontrol button.repcontrol_add::after {
+  content: "";
+}
+
+/* "Send to chat" broadcast buttons (data-i18n-title="send_details_to_chat",
+ * authored as the single character ":"). Font-family only — the sheet's
+ * own rules already size these correctly per context; only the pictos
+ * remap needs undoing. Left as its literal ":" rather than substituted
+ * with a guessed icon shape (unlike the two above, no independent
+ * confirmation of what this one is actually supposed to look like). */
+.charsheet button[type="roll"].broadcast-button {
+  font-family: initial;
+}
+
+/* Every <li> bullet on this sheet (GATHER INFORMATION, TEAMWORK, etc.) is
+ * drawn as a font GLYPH — "■" (BLACK SQUARE) in font-family: Georgia,
+ * serif, rotated 45deg into a diamond via transform. Confirmed live: this
+ * renders as a plain round dot in the sandbox's bundled Playwright
+ * Chromium, but as a broken-glyph placeholder (a small blue/red tag icon —
+ * Windows' own fallback for a codepoint no locally installed font can
+ * render) in the real app, running against whatever fonts are actually
+ * installed on the end user's own Windows machine — a font-availability
+ * gap this project has no control over sheet by sheet. Replacing the
+ * font-glyph bullet with a plain CSS-drawn square (background-color, no
+ * character/font involved at all) sidesteps the question of which fonts
+ * happen to be installed entirely — guaranteed to render identically
+ * everywhere, same rotated-diamond look the original was going for. */
+.charsheet li::before {
+  content: "";
+  width: 0.55em;
+  height: 0.55em;
+  background-color: currentColor;
+  font-family: initial;
+}

@@ -1,0 +1,10 @@
+{
+  "name": "Roll20 Sheet Importer",
+  "description": "Upload a Roll20 community sheet's own HTML/CSS/translation.json, or pick one from Roll20's public GitHub corpus — importing creates a reusable Template you can create character cards from.",
+  "key": "roll20importerview",
+  "mainResource": "roll20compat_importer_index.html",
+  "additionalResources": [
+    "roll20compat_roll20compat-importer.js",
+    "roll20compat_roll20compat-importer.css"
+  ]
+}

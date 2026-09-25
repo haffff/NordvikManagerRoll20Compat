@@ -33,14 +33,22 @@ export const RollQueryModal = ({ formula, onResolve, onCancel }) => {
 
   if (queries.length === 0) return null;
 
-  const submit = (e) => {
-    e.preventDefault();
-    onResolve(resolveQueries(formula, answers));
+  const submit = () => onResolve(resolveQueries(formula, answers));
+
+  // Not a <form>: cards run in an iframe with sandbox="allow-scripts" only
+  // (CardPanel.js), and without allow-forms Chrome blocks a submission
+  // before the submit event fires — onSubmit would never run. Enter is
+  // handled by hand instead, except on a focused button (Cancel must cancel).
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && e.target.tagName !== "BUTTON") {
+      e.preventDefault();
+      submit();
+    }
   };
 
   return (
     <div className="r20c-query-modal-overlay" role="dialog" aria-modal="true">
-      <form className="r20c-query-modal" onSubmit={submit}>
+      <div className="r20c-query-modal" onKeyDown={onKeyDown}>
         {queries.map((q) => (
           <label key={q.raw} className="r20c-query-field">
             <span className="r20c-query-label">{q.prompt}</span>
@@ -69,9 +77,11 @@ export const RollQueryModal = ({ formula, onResolve, onCancel }) => {
           <button type="button" onClick={onCancel}>
             Cancel
           </button>
-          <button type="submit">Roll</button>
+          <button type="button" onClick={submit}>
+            Roll
+          </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 };

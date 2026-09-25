@@ -1,0 +1,146 @@
+.roll20importer_container {
+  max-width: 480px;
+  margin: 32px auto;
+  padding: 16px;
+}
+
+.roll20importer_title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.roll20importer_subtitle {
+  font-size: 12px;
+  color: #a0a0a0;
+  margin-bottom: 16px;
+}
+
+.roll20importer_form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roll20importer_field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.roll20importer_field input[type="text"],
+.roll20importer_field input:not([type]) {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: inherit;
+}
+
+.roll20importer_field_hint {
+  font-size: 11px;
+  color: #e0a04a;
+}
+
+.roll20importer_form button {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: none;
+  background: #3a7bd5;
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.roll20importer_form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.roll20importer_status {
+  padding: 24px;
+  text-align: center;
+  color: #a0a0a0;
+}
+
+.roll20importer_error {
+  color: #e05b5b;
+  font-size: 12px;
+}
+
+.roll20importer_tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.roll20importer_tab,
+.roll20importer_tab_active {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.roll20importer_tab_active {
+  background: #3a7bd5;
+  border-color: #3a7bd5;
+  font-weight: 600;
+}
+
+.roll20importer_browse {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roll20importer_browse .roll20importer_status {
+  padding: 8px 0;
+  text-align: left;
+}
+
+.roll20importer_search {
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: inherit;
+  font-size: 13px;
+}
+
+.roll20importer_catalog_list {
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.roll20importer_catalog_item,
+.roll20importer_catalog_item_active {
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.roll20importer_catalog_item:hover {
+  background: #2a2a2a;
+}
+
+.roll20importer_catalog_item_active {
+  background: #3a7bd5;
+}

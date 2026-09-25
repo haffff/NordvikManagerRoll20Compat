@@ -41,7 +41,12 @@ if (cards.length === 0) {
     console.warn('No cards found under card_sources/ — nothing to build yet.');
 }
 
-// 1. create packed folder and seed it with addon_files
+// 1. wipe any previous packed/ output and reseed it with addon_files.
+//    Without this, cpSync only ever ADDS/overwrites — a file that existed in
+//    an earlier packed/ but was since removed from addon_files/ (e.g. a
+//    .gitkeep deleted after real content landed) silently survives into the
+//    next zip, undoing the fix at the source.
+rmSync(packedDir, { recursive: true, force: true });
 mkdirSync(packedDir, { recursive: true });
 cpSync(addonFilesDir, packedDir, { recursive: true });
 

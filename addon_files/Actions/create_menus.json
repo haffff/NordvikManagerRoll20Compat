@@ -1,0 +1,22 @@
+{
+  "name": "create_menus",
+  "hook": 5,
+  "isEnabled": true,
+  "content": [
+    {
+      "id": "b2b2b2b2-42d6-4b59-86f2-fd439566d10d",
+      "Data": {
+        "Label": "Import Roll20 Sheet",
+        "Location": "addons",
+        "Name": "import_roll20_sheet",
+        "UiName": "Import Roll20 Sheet",
+        "Action": "roll20compat/open_roll20_importer",
+        "SubMenuId": "roll20compat_tools",
+        "SubMenuName": "Roll20 Compat Tools",
+        "Icon": "FaFileImport"
+      },
+      "Type": "AddMenuItem"
+    }
+  ],
+  "gmPermission": 31
+}

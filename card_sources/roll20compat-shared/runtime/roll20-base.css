@@ -1,0 +1,197 @@
+/* roll20-base.css
+ *
+ * A ported Roll20 sheet's own CSS is written assuming a small set of
+ * layout/base classes that the REAL Roll20 platform supplies globally
+ * (loaded before any sheet's own CSS) — most legacy sheets never define
+ * these themselves. Confirmed by comparing a legacy sheet's markup
+ * (Numenera: `<div class="sheet-3colrow"><div class="sheet-col">`) against
+ * its own CSS, which has no rule for bare `.sheet-3colrow`/`.sheet-col` at
+ * all — without this file, those elements render as plain stacked blocks.
+ *
+ * This is an ORIGINAL reimplementation of the specific functional behaviors
+ * observed, not a copy of Roll20's own platform stylesheet — deliberately
+ * scoped to only the handful of rules a generically-imported sheet actually
+ * needs (column-row layout, basic input/button sizing), not Roll20's own
+ * dialog chrome, macrobar, attribute/ability editor UI, or dark-mode
+ * theming, none of which apply to a sheet rendered inside NordvikManager's
+ * own card panel.
+ *
+ * Selectors are scoped `.ui-dialog .charsheet ...` to match the same
+ * compound-class nesting real sheets' own CSS assumes (some legacy sheet
+ * CSS also uses that same double-scoped selector, not just `.charsheet`
+ * alone) — see sheetTransform.mjs's wrapCharsheet(), which wraps every
+ * imported sheet's content in exactly this `.ui-dialog > .charsheet`
+ * nesting for this reason.
+ */
+
+/* Roll20's real page loads a site-wide /assets/base.css (a normalize.css +
+ * Bootstrap-style reset, confirmed by the user against the real file — not
+ * sheet-specific, not part of charsheet.css) whose universal `* {
+ * box-sizing: border-box }` every embedded sheet implicitly inherits.
+ * Without it here, browsers default to content-box, which silently throws
+ * off every width-sensitive rule a sheet author or roll20-base.css itself
+ * writes against an explicit width (the sheet's own width:868px dialog,
+ * width:10em columns, the calc(33% - 21px) 3-col math below) whenever
+ * padding/border is also present on that element. */
+.ui-dialog,
+.ui-dialog .charsheet,
+.ui-dialog .charsheet *,
+.ui-dialog .charsheet *::before,
+.ui-dialog .charsheet *::after {
+  box-sizing: border-box;
+}
+
+/* The same real base.css sets `html { font-size: 10px }` (Bootstrap 3's
+ * own rem-basis trick — 1rem = 10px exactly) and `body { font-size: 14px;
+ * ... }` (Bootstrap 3's default typography). Confirmed directly against a
+ * real, browser-saved Roll20 popout's own base.css. Without the html rule,
+ * browsers default to 16px — every `rem`-based measurement in a sheet's
+ * own CSS then renders 1.6x too large (confirmed live: Cyberpunk RED
+ * (raycw) uses `rem` 61 times in its own stylesheet, and was reported
+ * showing dramatically oversized text — this is why). Targets the actual
+ * `html`/`body` elements (not `.ui-dialog`/`.charsheet`-scoped like every
+ * other rule here) because they ARE the sheet's own document root inside
+ * CardPanel.js's sandboxed iframe, not an ancestor outside it — see
+ * wrapCharsheet()'s own header for why every packaged sheet gets a real
+ * <html>/<body> either way (used as-is for a full-document sheet, built
+ * fresh for a bare fragment). */
+html {
+  font-size: 10px;
+}
+
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.42857143;
+  color: #333;
+}
+
+/* Browsers don't inherit font-family/font-size/line-height into form
+ * controls (button/input/select/textarea) by default — they use the OS's
+ * UI font instead, regardless of what the ancestor chain's CSS says. Real
+ * base.css explicitly resets this (`input, button, select, textarea {
+ * font-family: inherit; font-size: inherit; line-height: inherit; }`,
+ * confirmed against the same real, browser-saved base.css as the html/body
+ * rules above). Without it, every roll/action button and every text input
+ * on a sheet that (like most of the corpus) sets its custom font-family on
+ * an ancestor div rather than every individual control silently renders in
+ * "Arial" instead — confirmed live: a skill-name roll button computed
+ * "Source Sans Pro" on its own .sheet-main ancestor but "Arial" on itself,
+ * and the OS-font fallback's wider glyph metrics were enough to wrap a
+ * longer label (Cyberpunk RED raycw's "Human Perception (EMP)") onto a
+ * second line inside its fixed-height row. */
+.ui-dialog .charsheet input,
+.ui-dialog .charsheet button,
+.ui-dialog .charsheet select,
+.ui-dialog .charsheet textarea {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.ui-dialog .charsheet input {
+  height: auto;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.ui-dialog .charsheet input[type="number"] {
+  width: 3.5em;
+}
+
+.ui-dialog .charsheet hr {
+  clear: both;
+}
+
+/* Row/column layout primitives — the ones actually found in use across the
+ * corpus (2 and 3 column; a 4-column variant was never observed in a sheet
+ * that didn't also define its own rule for it, so it's not replicated here). */
+.ui-dialog .charsheet .sheet-row,
+.ui-dialog .charsheet .sheet-2colrow,
+.ui-dialog .charsheet .sheet-3colrow {
+  display: block;
+  clear: both;
+}
+
+.ui-dialog .charsheet .sheet-col {
+  display: inline-block;
+  vertical-align: top;
+}
+
+.ui-dialog .charsheet .sheet-col img {
+  max-width: 100%;
+}
+
+.ui-dialog .charsheet .sheet-2colrow .sheet-col {
+  width: calc(50% - 20px);
+  margin-right: 30px;
+}
+
+.ui-dialog .charsheet .sheet-3colrow .sheet-col {
+  width: calc(33% - 21px);
+  margin-right: 30px;
+}
+
+.ui-dialog .charsheet .sheet-col:last-child {
+  margin-right: 0 !important;
+}
+
+/* button[type=roll]/[type=action] base sizing. The font-size:1.3em bump
+ * this rule originally had is GONE — confirmed live as an actively harmful
+ * guess, not a borrowed real-platform value (real base.css has no such
+ * rule; roll/action buttons get their look from Roll20's own bundled
+ * "dicefontd20"/"pictos" icon fonts, out of scope here either way). Cyberpunk
+ * RED (raycw) uses the skill NAME itself as its type="roll" button
+ * (`<button type="roll">Concentration (WILL)</button>`) inside a
+ * deliberately compact context (`.sheet-flex-table{font-size:1.2rem}` on a
+ * fixed 24px-tall row) — the 1.3em bump compounded on top of that
+ * (12px * 1.3 = 15.6px) overflowed the row and visibly overlapped the next
+ * one, reported live as "fonts... are real big". Every sheet with its own
+ * button[type=roll] styling (Blades in the Dark, 13th Age Glorantha, ...)
+ * already overrides this on its own terms regardless, so the bump wasn't
+ * filling a real gap for those — just inflating the corpus sheets, like
+ * raycw, that intentionally size their roll buttons small/contextually. */
+.ui-dialog .charsheet button[type="roll"],
+.ui-dialog .charsheet button[type="action"] {
+  padding: 2px 3px;
+  margin: 0 3px;
+}
+
+/* repeatingBinding.js's own auto-injected .repcontainer/.repitem/.itemcontrol/
+ * .repcontrol/.repcontrol_add/.repcontrol_del structure (see that file's own
+ * header for the exact shape, confirmed against two real Roll20 popouts).
+ * About half the corpus sheets checked (6/12) never style these classes
+ * themselves — presumably because on the real platform they're rendered by
+ * Roll20 itself, not authored — so without a baseline here they'd fall back
+ * to plain, unstyled browser buttons/divs. A sheet's own CSS, when it DOES
+ * target these classes, still wins on equal specificity (this file loads
+ * before every sheet's own CSS — see the render shell's load order in
+ * roll20compat-sheetrenderer's roll20Assembly.js). */
+.ui-dialog .charsheet .btn {
+  display: inline-block;
+  padding: 3px 8px;
+  font-size: 0.9em;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+  background: #f0f0f0;
+}
+
+.ui-dialog .charsheet .btn:hover {
+  background: #e0e0e0;
+}
+
+.ui-dialog .charsheet .itemcontrol {
+  display: flex;
+  gap: 3px;
+  float: right;
+}
+
+.ui-dialog .charsheet .repcontrol_del.btn-danger {
+  color: #a33;
+  border-color: rgba(170, 51, 51, 0.4);
+}
+
+.ui-dialog .charsheet .repcontrol {
+  margin: 3px 0;
+}

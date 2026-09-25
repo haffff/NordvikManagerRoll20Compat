@@ -1,0 +1,12 @@
+{
+  "name": "Install addon",
+  "hook": 1,
+  "isEnabled": true,
+  "content": [
+    {
+      "Data": { "Label": "Create menus", "Name": "", "Value": "roll20compat/create_menus" },
+      "Type": "ExecuteAction"
+    }
+  ],
+  "gmPermission": 31
+}

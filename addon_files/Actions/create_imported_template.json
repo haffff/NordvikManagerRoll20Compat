@@ -1,0 +1,41 @@
+{
+  "name": "create_imported_template",
+  "hook": 0,
+  "prefix": "roll20compat",
+  "isEnabled": true,
+  "content": [
+    {
+      "id": "d1d1d1d1-0d00-4a00-8a00-000000000001",
+      "Data": {
+        "Label": "Create a new Template for this imported sheet",
+        "Name": "%name%",
+        "TemplateId": "%qn:card-\"Roll20 Sheet (internal — do not use directly)\".id%",
+        "IsTemplate": true,
+        "Owner": "%gmId%",
+        "Output": "newTemplateId"
+      },
+      "Type": "CreateCard"
+    },
+    {
+      "id": "d1d1d1d1-0d00-4a00-8a00-000000000002",
+      "Data": {
+        "Label": "Tag the new Template with its own content lookup id",
+        "ParentId": "%newTemplateId%",
+        "PropertyName": "roll20compat_content_id",
+        "PropertyValue": "%newTemplateId%"
+      },
+      "Type": "SetProperty"
+    },
+    {
+      "id": "d1d1d1d1-0d00-4a00-8a00-000000000003",
+      "Data": {
+        "Label": "Publish the new Template's id so the importer view can pick it up",
+        "Key": "roll20compat_create_result_%jobId%",
+        "Name": "roll20compat_create_result_%jobId%",
+        "Content": "%newTemplateId%",
+        "MimeType": "text/plain"
+      },
+      "Type": "SetResource"
+    }
+  ]
+}

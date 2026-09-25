@@ -1,6 +1,14 @@
 my-credentials
 node_modules/
+dist/
 
 # ignore packed directory and packed.zip
 packed/
 packed.zip
+
+# sandbox output (assembled HTML, screenshots) — regenerated on every run
+sandbox/output/
+
+# sandbox reference bundles (real, browser-saved Roll20 popouts — contain
+# real character/campaign data, never meant to be checked in)
+sandbox/reference/

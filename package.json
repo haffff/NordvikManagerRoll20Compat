@@ -5,9 +5,15 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "pack": "node scripts/pack-cards.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "sandbox:check": "node sandbox/check.mjs",
+    "sandbox:inspect": "node sandbox/inspect.mjs",
+    "sandbox:compare": "node sandbox/compareReference.mjs",
+    "sandbox:importer": "node sandbox/checkImporter.mjs && node sandbox/checkImporterGithub.mjs",
+    "sandbox:rollquery": "node sandbox/checkRollQuery.mjs"
   },
   "devDependencies": {
-    "archiver": "^7.0.1"
+    "archiver": "^7.0.1",
+    "playwright": "^1.62.1"
   }
 }

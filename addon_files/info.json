@@ -2,7 +2,7 @@
     "$schema": "https://raw.githubusercontent.com/haffff/NordvikManager-Addons/refs/heads/main/schemas/addon.json",
     "key": "roll20compat",
     "name": "Roll20 Compatibility Layer",
-    "description": "Ports community Roll20 character sheets (Blades in the Dark, Fate Core, ...) as NordvikManager addon cards",
+    "description": "Import community Roll20 character sheets (Blades in the Dark, Fate Core, ...) as NordvikManager Templates via the Roll20 Sheet Importer",
     "version": "0.0.1",
     "author": "haffff",
     "license": "MIT",

@@ -22,6 +22,11 @@ export const FAKE_CARD_API_SCRIPT = `<script>
   'use strict';
 
   window.__sandboxLog = [];
+  // Per-method call counts — in the real app every CardAPI call is a
+  // postMessage round trip to the host, and most become a server request,
+  // so these are the numbers to watch for load/interaction cost.
+  window.__apiCounts = {};
+  const _count = (method) => { window.__apiCounts[method] = (window.__apiCounts[method] || 0) + 1; };
   function log(kind, detail) { window.__sandboxLog.push({ kind, detail, t: Date.now() }); }
 
   const _props = {};       // name -> value (string)
@@ -70,12 +75,44 @@ export const FAKE_CARD_API_SCRIPT = `<script>
     additionalArguments: null,
 
     Properties: {
-      Get: _get,
-      GetMany: (names) => Promise.all((names || []).map(_get)),
-      Set: _set,
-      SetMany: (props) => Promise.all(Object.entries(props || {}).map(([n, v]) => _set(n, v))),
-      Init: _init,
-      InitMany: (props) => Promise.all(Object.entries(props || {}).map(([n, v]) => _init(n, v))),
+      // Same shapes as the real host (src/CardAPI.js): *Many take/return
+      // arrays of { name, value }. Each call counts once in __apiCounts — one
+      // host call each in the real app — and a Get/GetMany of a property
+      // that doesn't exist is counted separately, since the real host never
+      // caches a miss (every one is a QueryProperties server request).
+      Get: (name) => {
+        _count("Properties.Get");
+        if (_props[name] === undefined) _count("server request: lookup of missing property");
+        return _get(name);
+      },
+      GetMany: (names) => {
+        _count("Properties.GetMany");
+        const list = Array.isArray(names) ? names : [names];
+        if (list.some((n) => _props[n] === undefined)) _count("server request: lookup of missing property");
+        return Promise.all(list.map(_get)).then((found) => found.filter(Boolean));
+      },
+      GetProperties: () => {
+        _count("Properties.GetProperties");
+        return Promise.resolve(Object.keys(_props).map((name) => ({ name, value: _props[name] })));
+      },
+      Set: (name, value) => {
+        _count("Properties.Set");
+        return _set(name, value);
+      },
+      SetMany: (list) => {
+        _count("Properties.SetMany");
+        return Promise.all((list || []).map((p) => _set(p.name, p.value)));
+      },
+      Init: (name, value) => {
+        _count("Properties.Init");
+        if (_props[name] === undefined) _count("server request: lookup of missing property");
+        return _init(name, value);
+      },
+      InitMany: (list) => {
+        _count("Properties.InitMany");
+        if ((list || []).some((p) => _props[p.name] === undefined)) _count("server request: lookup of missing property");
+        return Promise.all((list || []).map((p) => _init(p.name, p.value)));
+      },
       Remove: _remove,
 
       Subscribe: (name, cb) => {
@@ -134,9 +171,9 @@ export const FAKE_CARD_API_SCRIPT = `<script>
         GetByNames: (parentId, names) => Promise.all((names || []).map(_get)),
         GetProperties: () => Promise.resolve([]),
         Set: (parentId, name, val) => _set(name, val),
-        SetMany: (parentId, props) => Promise.all(Object.entries(props || {}).map(([n, v]) => _set(n, v))),
+        SetMany: (parentId, list) => Promise.all((list || []).map((p) => _set(p.name, p.value))),
         Init: (parentId, name, val) => _init(name, val),
-        InitMany: (parentId, props) => Promise.all(Object.entries(props || {}).map(([n, v]) => _init(n, v))),
+        InitMany: (parentId, list) => Promise.all((list || []).map((p) => _init(p.name, p.value))),
         Remove: (parentId, name) => _remove(name),
         Subscribe: () => {},
         Unsubscribe: () => {},

@@ -22,6 +22,7 @@ import { splitWorkerScript, wrapCharsheet, stripRollTemplates, stripLocalLinks, 
 // side effect of attaching to globalThis.Roll20Compat, same as they would
 // attach to window.Roll20Compat in a browser.
 const require = createRequire(import.meta.url);
+require("../card_sources/roll20compat-shared/runtime/propertyStore.js");
 require("../card_sources/roll20compat-shared/runtime/attrBinding.js");
 require("../card_sources/roll20compat-shared/runtime/repeatingBinding.js");
 require("../card_sources/roll20compat-shared/runtime/translationFill.js");
@@ -630,6 +631,149 @@ check(
   ),
   '<html><head></head><body><div class="ui-dialog" style="width:868px;"><div class="charsheet" id="root"><div class="sheet-13G">hi</div></div></div></body></html>'
 );
+
+// ── propertyStore.js (async — runs last) ────────────────────────────────────
+
+// A CardAPI stand-in shaped like the real host (src/CardAPI.js): async calls,
+// *Many take arrays of { name, value }, and change events reach only
+// Subscribe()d names — which the test fires by hand via emit().
+function fakeHostApi(initial, { failGetProperties = false } = {}) {
+  const props = new Map(Object.entries(initial).map(([name, value]) => [name, { id: "id_" + name, name, value }]));
+  const subs = {};
+  const calls = [];
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  return {
+    calls,
+    props,
+    emit: (name, prop) => (subs[name] || []).forEach((cb) => cb(prop)),
+    Properties: {
+      GetProperties: async () => { calls.push(["GetProperties"]); await tick(); if (failGetProperties) throw new Error("nope"); return [...props.values()]; },
+      Get: async (name) => { calls.push(["Get", name]); await tick(); return props.get(name) ?? null; },
+      GetMany: async (names) => { calls.push(["GetMany", names]); await tick(); return names.map((n) => props.get(n)).filter(Boolean); },
+      Init: async (name, value) => { calls.push(["Init", name]); await tick(); if (!props.has(name)) props.set(name, { name, value }); },
+      InitMany: async (list) => { calls.push(["InitMany", list.map((p) => p.name)]); await tick(); for (const p of list) if (!props.has(p.name)) props.set(p.name, { ...p }); },
+      Set: async (name, value) => { calls.push(["Set", name, value]); await tick(); props.set(name, { name, value }); },
+      SetMany: async (list) => { calls.push(["SetMany", list.map((p) => [p.name, p.value])]); await tick(); for (const p of list) props.set(p.name, { ...p }); },
+      Remove: async (name) => { calls.push(["Remove", name]); props.delete(name); },
+      Subscribe: (name, cb) => { (subs[name] = subs[name] || []).push(cb); },
+      Unsubscribe: () => {},
+      List: { Add: async () => {} },
+    },
+  };
+}
+const { PropertyStore } = globalThis.Roll20Compat;
+
+{
+  const host = fakeHostApi({ str: "34", tab: "page1" });
+  const api = PropertyStore.wrap(host);
+  const [str, missing, many] = await Promise.all([api.Properties.Get("str"), api.Properties.Get("never_set"), api.Properties.GetMany(["str", "tab", "nope"])]);
+  check(
+    "PropertyStore: loads the card once with GetProperties, then answers Get/GetMany locally — including properties that don't exist (the host never caches a miss)",
+    { str: str?.value, missing, many: many.map((p) => p.value), calls: host.calls },
+    { str: "34", missing: null, many: ["34", "page1"], calls: [["GetProperties"]] }
+  );
+}
+
+{
+  const host = fakeHostApi({ existing: "x" });
+  const api = PropertyStore.wrap(host);
+  await Promise.all([api.Properties.Init("existing", "default"), api.Properties.Init("a", "1"), api.Properties.Init("b", "2"), api.Properties.Init("a", "1")]);
+  const b = await api.Properties.Get("b");
+  check(
+    "PropertyStore: Init calls in the same tick become ONE InitMany of only the missing properties, readable immediately",
+    { calls: host.calls.filter(([m]) => m !== "GetProperties"), b: b?.value, existing: host.props.get("existing").value },
+    { calls: [["InitMany", ["a", "b"]]], b: "2", existing: "x" }
+  );
+}
+
+{
+  const host = fakeHostApi({ str: "34", str_bonus: "3" });
+  const api = PropertyStore.wrap(host);
+  await Promise.all([api.Properties.Set("str", 34), api.Properties.Set("str_bonus", "4"), api.Properties.Set("wounds", "9"), api.Properties.Set("str_bonus", "5")]);
+  check(
+    "PropertyStore: Set calls in the same tick become ONE SetMany, skipping values unchanged as strings (34 vs \"34\") with the last write per name winning, all sent as strings",
+    host.calls.filter(([m]) => m !== "GetProperties"),
+    [["SetMany", [["str_bonus", "5"], ["wounds", "9"]]]]
+  );
+}
+
+{
+  const host = fakeHostApi({});
+  const api = PropertyStore.wrap(host);
+  const order = [];
+  const initDone = api.Properties.Init("tab", "page1").then(() => order.push("init resolved"));
+  const setDone = api.Properties.Set("tab", "page2").then(() => order.push("set resolved"));
+  await Promise.all([initDone, setDone]);
+  check(
+    "PropertyStore: a Set queued after an Init of the same new property waits for the InitMany to finish, so the two can never both create it",
+    { calls: host.calls.filter(([m]) => m !== "GetProperties"), order },
+    { calls: [["InitMany", ["tab"]], ["SetMany", [["tab", "page2"]]]], order: ["init resolved", "set resolved"] }
+  );
+}
+
+{
+  const host = fakeHostApi({ tab: "page1" });
+  const api = PropertyStore.wrap(host);
+  await api.Properties.Get("tab");
+  await api.Properties.Get("created_later");
+  host.emit("tab", { id: "id_tab", name: "tab", value: "page2" });
+  host.emit("created_later", { id: "id_new", name: "created_later", value: "7" });
+  const [tab, created] = await Promise.all([api.Properties.Get("tab"), api.Properties.Get("created_later")]);
+  host.emit("tab", null);
+  const removed = await api.Properties.Get("tab");
+  check(
+    "PropertyStore: stays current from the card's property events — another client's update, a property created after it was looked up as missing, and a removal",
+    { tab: tab?.value, created: created?.value, removed },
+    { tab: "page2", created: "7", removed: null }
+  );
+}
+
+{
+  // WFRP4CharSheet's version migration: setAttrs({version: 0}) over "" must
+  // be sent (a loose "" == 0 dropped it, and the script re-wrote it forever),
+  // sent as a string (the host's own Set compares with == too), and read back
+  // as the number the script wrote — even after the backend echoes "0" — since
+  // the script re-runs until typeof version is "number".
+  const host = fakeHostApi({ version: "" });
+  const api = PropertyStore.wrap(host);
+  await api.Properties.Set("version", 0);
+  host.emit("version", { id: "id_version", name: "version", value: "0" });
+  const afterEcho = await api.Properties.Get("version");
+  check(
+    "PropertyStore: a write of 0 over \"\" is sent (as \"0\"), and reads back as the number 0 even after the backend echoes \"0\"",
+    { calls: host.calls.filter(([m]) => m !== "GetProperties"), value: afterEcho?.value, type: typeof afterEcho?.value },
+    { calls: [["SetMany", [["version", "0"]]]], value: 0, type: "number" }
+  );
+}
+
+{
+  // After a reload the backend's value is the string "0"; the script writes
+  // the number 0 again — no network call, but the local type updates so the
+  // script's typeof check passes and the migration stops.
+  const host = fakeHostApi({ version: "0" });
+  const api = PropertyStore.wrap(host);
+  await api.Properties.Set("version", 0);
+  const value = (await api.Properties.Get("version"))?.value;
+  check(
+    "PropertyStore: re-writing a stored \"0\" as the number 0 sends nothing but reads back as a number",
+    { calls: host.calls.filter(([m]) => m !== "GetProperties"), value, type: typeof value },
+    { calls: [], value: 0, type: "number" }
+  );
+}
+
+{
+  const host = fakeHostApi({ str: "34" }, { failGetProperties: true });
+  const api = PropertyStore.wrap(host);
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  const str = await api.Properties.Get("str");
+  console.warn = originalWarn;
+  check(
+    "PropertyStore: falls back to direct CardAPI calls if GetProperties fails",
+    { str: str?.value, calls: host.calls.map(([m]) => m) },
+    { str: "34", calls: ["GetProperties", "Get"] }
+  );
+}
 
 console.log(failures === 0 ? "\nAll smoke checks passed." : `\n${failures} smoke check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

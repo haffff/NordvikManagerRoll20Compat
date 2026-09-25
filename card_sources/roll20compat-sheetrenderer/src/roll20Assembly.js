@@ -4,13 +4,14 @@
 // header). Runs inside the sandboxed Card iframe, in whichever player's
 // browser opened this specific character card.
 //
-// The 7 shared runtime files, in a fixed load order — order is load-bearing (see
+// The 8 shared runtime files, in a fixed load order — order is load-bearing (see
 // bootstrap.js's own header: it must run AFTER the sheet's own body markup
 // already exists in the DOM, and BEFORE the sheet's own worker script).
 // Static `?raw` imports, not a loop over a filename array, because ES
 // module import specifiers must be static string literals; adding a runtime
 // file means adding both its import and its place in the ORDER array below.
 import { scopeSheetCss } from "../../roll20compat-shared/tools/sheetTransform.mjs";
+import propertyStoreJs from "../../roll20compat-shared/runtime/propertyStore.js?raw";
 import attrBindingJs from "../../roll20compat-shared/runtime/attrBinding.js?raw";
 import repeatingBindingJs from "../../roll20compat-shared/runtime/repeatingBinding.js?raw";
 import translationFillJs from "../../roll20compat-shared/runtime/translationFill.js?raw";
@@ -81,6 +82,7 @@ export function assembleRenderableDocument({ mainHtml, workerJs, sheetCss, key }
   // SheetWorkerShim.install() must define on()/getAttrs()/etc. as globals
   // before the worker script's own top-level code can call them).
   const scripts = [
+    propertyStoreJs,
     attrBindingJs,
     repeatingBindingJs,
     translationFillJs,

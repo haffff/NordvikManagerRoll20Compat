@@ -446,9 +446,19 @@
     // {sourceAttribute, section, rowId} for a repeating-row action button —
     // the only way a `clicked:` handler can know WHICH row's button fired,
     // matching real Roll20's eventinfo shape for repeating buttons.
-    function dispatchClicked(actionName, extra) {
+    // Roll20's clicked: events: a plain button fires "clicked:<name>"; a
+    // button inside a repeating row fires the section-scoped
+    // "clicked:repeating_<section>:<name>" (the plain form never matches it).
+    // triggerName carries the "clicked:" prefix, and for a row names the
+    // exact row, like its sourceAttribute: repeating_<section>_<rowId>_<name>.
+    function dispatchClicked(actionName, extra = {}) {
+      const inRow = !!(extra.section && extra.rowId);
+      const target = inRow ? `repeating_${extra.section}:${actionName}` : actionName;
+      const triggerName = inRow
+        ? `clicked:repeating_${extra.section}_${extra.rowId}_${actionName}`
+        : `clicked:${actionName}`;
       for (const { spec, cb } of listeners.clicked) {
-        if (spec.action === actionName) cb({ triggerName: actionName, ...extra });
+        if (spec.action.toLowerCase() === target.toLowerCase()) cb({ ...extra, triggerName });
       }
     }
 

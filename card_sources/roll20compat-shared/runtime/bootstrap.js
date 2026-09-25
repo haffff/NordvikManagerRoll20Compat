@@ -35,12 +35,14 @@
 (function (global) {
   "use strict";
   const Roll20Compat = (global.Roll20Compat = global.Roll20Compat || {});
-  const cardApi = global.CardAPI;
-
-  if (!cardApi) {
+  if (!global.CardAPI) {
     console.error("Roll20Compat.bootstrap: window.CardAPI is not defined — SANDBOX_BRIDGE_SCRIPT must load before this file.");
     return;
   }
+  // Every runtime piece below talks to the property-store facade, not the
+  // raw bridge — see propertyStore.js for why (batched Init/Set, locally
+  // answered Get).
+  const cardApi = Roll20Compat.PropertyStore ? Roll20Compat.PropertyStore.wrap(global.CardAPI) : global.CardAPI;
 
   const root = document.body;
 

@@ -208,60 +208,65 @@
     });
   }
 
-  const REPEATING_ROW_SEL = ".repeating-row"; // see repeatingBinding.js's createSection
+  // Repeating rows are rendered by repeatingBinding.js as .repitem elements
+  // (carrying data-reprowid) inside a .repcontainer whose data-groupname is
+  // the section's "repeating_X" name — NOT inside the authored <fieldset>,
+  // which is emptied and hidden.
+  const REPEATING_ROW_SEL = ".repitem";
 
   /**
-   * Wires every button[type="roll"] and button[type="action"] under `root`.
+   * Handles clicks on every button[type="roll"] and button[type="action"]
+   * under `root` with ONE delegated listener, rather than one per button
+   * bound at load: rows added later (saved rows rendering in, "+Add") get
+   * working buttons too, and a sheet with hundreds of buttons costs one
+   * listener.
    * @param {Element} root
    * @param {{fireRoll: Function}} rollDispatchApi - rollDispatch.js's install() result
    * @param {{dispatchClicked: Function}} shimApi - sheetWorkerShim.js's install() result
    * @returns {{destroy: Function}}
    */
   function install(root, rollDispatchApi, shimApi) {
-    const cleanups = [];
-
-    for (const btn of root.querySelectorAll('button[type="roll"]')) {
-      const onClick = () => {
-        const formula = extractRollFormula(btn.getAttribute("value"));
-        if (!formula) return;
-        askQueries(formula)
-          .then((resolved) => (resolved === null ? null : rollDispatchApi.fireRoll(resolved)))
-          .catch((err) => {
-            console.error(`rollButtons: roll failed for button value "${btn.getAttribute("value")}"`, err);
-          });
-      };
-      btn.addEventListener("click", onClick);
-      cleanups.push(() => btn.removeEventListener("click", onClick));
-    }
-
-    // type="action" is meaningless without a worker script to catch the
-    // clicked: event it fires — a worker-less sheet (~35% of the corpus, no
-    // sheetWorkerShim.js loaded, shimApi undefined) legitimately has none of
-    // these wired, same as real Roll20 with no matching on() handler.
-    for (const btn of shimApi ? root.querySelectorAll('button[type="action"]') : []) {
-      const actionName = actionNameFromButtonName(btn.getAttribute("name"));
-      if (!actionName) continue;
-
-      const onClick = () => {
-        const rowEl = btn.closest(REPEATING_ROW_SEL);
-        if (!rowEl) {
-          shimApi.dispatchClicked(actionName);
-          return;
-        }
-        const rowId = rowEl.getAttribute("data-reprowid");
-        const fieldset = rowEl.closest("fieldset");
-        const section = Roll20Compat.RepeatingLogic?.parseRepeatingSectionName(fieldset?.className);
-        shimApi.dispatchClicked(actionName, {
-          rowId,
-          section,
-          sourceAttribute: section ? `repeating_${section}_${rowId}_${actionName}` : undefined,
+    const onRoll = (btn) => {
+      const formula = extractRollFormula(btn.getAttribute("value"));
+      if (!formula) return;
+      askQueries(formula)
+        .then((resolved) => (resolved === null ? null : rollDispatchApi.fireRoll(resolved)))
+        .catch((err) => {
+          console.error(`rollButtons: roll failed for button value "${btn.getAttribute("value")}"`, err);
         });
-      };
-      btn.addEventListener("click", onClick);
-      cleanups.push(() => btn.removeEventListener("click", onClick));
-    }
+    };
 
-    return { destroy: () => cleanups.forEach((fn) => fn()) };
+    const onAction = (btn) => {
+      const actionName = actionNameFromButtonName(btn.getAttribute("name"));
+      if (!actionName) return;
+      const rowEl = btn.closest(REPEATING_ROW_SEL);
+      if (!rowEl) {
+        shimApi.dispatchClicked(actionName);
+        return;
+      }
+      const rowId = rowEl.getAttribute("data-reprowid");
+      const groupName = rowEl.closest(".repcontainer")?.getAttribute("data-groupname");
+      const section = Roll20Compat.RepeatingLogic?.parseRepeatingSectionName(groupName);
+      shimApi.dispatchClicked(actionName, {
+        rowId,
+        section,
+        sourceAttribute: section ? `repeating_${section}_${rowId}_${actionName}` : undefined,
+      });
+    };
+
+    const onClick = (event) => {
+      const btn = event.target.closest?.('button[type="roll"], button[type="action"]');
+      if (!btn || !root.contains(btn)) return;
+      if (btn.getAttribute("type") === "roll") onRoll(btn);
+      // type="action" is meaningless without a worker script to catch the
+      // clicked: event it fires — a worker-less sheet (~35% of the corpus, no
+      // sheetWorkerShim.js loaded, shimApi undefined) legitimately ignores
+      // these, same as real Roll20 with no matching on() handler.
+      else if (shimApi) onAction(btn);
+    };
+
+    root.addEventListener("click", onClick);
+    return { destroy: () => root.removeEventListener("click", onClick) };
   }
 
   Roll20Compat.RollButtons = { install };

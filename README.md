@@ -19,6 +19,7 @@ addon_files/                         # the addon as installed (manifest, Actions
 card_sources/
   roll20compat-shared/               # not built standalone — imported by the cards and scripts
     runtime/                         # plain <script> runtime loaded into every sheet (window.Roll20Compat):
+      propertyStore.js               #   local copy of the card's properties: batched Init/Set, Get answered locally
       attrBinding.js                 #   attr_* fields <-> card properties
       repeatingBinding.js            #   fieldset.repeating_* sections <-> list properties
       sheetWorkerShim.js             #   Roll20 worker API (on/getAttrs/setAttrs/getSectionIDs/...)
@@ -60,9 +61,13 @@ pnpm run sandbox:check       # imports + renders 12 reference sheets (or: sandbo
                              # — console errors, authored defaults, dead CSS selectors, screenshots in sandbox/output/
 pnpm run sandbox:importer    # importer view end to end: upload + GitHub-browse -> Template -> render shell
 pnpm run sandbox:rollquery   # ?{...} roll-query dialog: answer, cancel, Enter
+pnpm run sandbox:interact    # page switching, sheet-script calculations, repeating rows, and a cap on
+                             # CardAPI calls per sheet open (performance guard)
 pnpm run sandbox:inspect <key> "<JS expression>"        # ad-hoc query against a rendered sheet
 pnpm run sandbox:compare <key> <savedRoll20Popout.html> # structural diff vs a real saved Roll20 page
 ```
+
+The fake CardAPI (`sandbox/fakeCardApi.mjs`) counts every call in `window.__apiCounts` — in the real app each is a round trip to the host, and a lookup of a missing property is always a server request, so watch these when touching the runtime.
 
 Every `sandbox:*` check uses the built cards, so run `pnpm run pack` first after any change.
 

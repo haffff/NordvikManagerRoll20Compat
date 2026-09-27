@@ -65,8 +65,7 @@
 
     // Sheets with no translationResourceKey (the overwhelming majority —
     // see the plan's "not applicable" note on Roll20's i18n service) get
-    // an identity fallback: the key itself, same as useTranslationBundle.js's
-    // t(key, fallback) when the bundle has no entry.
+    // an identity fallback: the key itself, when the bundle has no entry.
     function getTranslationByKey(key) {
       return bundle[key] ?? key;
     }

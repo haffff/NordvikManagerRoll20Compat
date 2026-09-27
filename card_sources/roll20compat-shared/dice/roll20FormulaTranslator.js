@@ -16,7 +16,7 @@
 // in Blades' source for what this is deliberately not trying to parse.
 //
 // Callers are expected to have already resolved any `?{...}` roll-query
-// tokens (see rollQuery.js / RollQueryModal.jsx) before calling this —
+// tokens (see components/rollQuery.js) before calling this —
 // a leftover `?{` in the formula is treated as an unresolved-query error,
 // not attempted here.
 
@@ -57,7 +57,7 @@ export function translateFormula(formula, attributes = {}) {
 
   if (f.includes("?{")) {
     throw new Roll20FormulaError(
-      `translateFormula: unresolved roll query in "${formula}" — resolve ?{...} tokens (RollQueryModal) before translating.`
+      `translateFormula: unresolved roll query in "${formula}" — resolve ?{...} tokens (rollQuery.js) before translating.`
     );
   }
 

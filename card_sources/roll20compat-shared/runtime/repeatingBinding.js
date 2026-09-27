@@ -2,8 +2,7 @@
 // window.Roll20Compat namespace, no bundler).
 //
 // repeatingBinding.js: binds `<fieldset class="repeating_X">` sections to
-// window.CardAPI.Properties.List.* (the backend's stable-id list property —
-// see usePropertyListV2.js, the React equivalent of this same logic).
+// window.CardAPI.Properties.List.* (the backend's stable-id list property).
 //
 // Roll20's authored HTML contains exactly ONE template row per repeating_X
 // fieldset (Roll20's own client clones it at render time — confirmed via the
@@ -107,8 +106,7 @@
   // name): lookups never escape the row's own subtree.
   //
   // Text fields commit on "change" (blur/Enter), not "input" (every
-  // keystroke) — matches the blur-commit pattern used elsewhere in this
-  // library (useFieldInput.js) and avoids firing a List.Update round-trip
+  // keystroke) — the same blur-commit pattern the cards use, and avoids firing a List.Update round-trip
   // per character typed.
   function bindRowFields(rowEl, item, onFieldCommit) {
     const cleanups = [];
@@ -294,7 +292,7 @@
 
     // Properties.Init(name, "[]") only guarantees the Add was *sent*, not
     // that the server has processed it yet (documented, pre-existing
-    // fire-and-forget gap — see usePropertyListV2.js). A user clicking
+    // fire-and-forget gap in CardAPI's Properties.Init/Add). A user clicking
     // "+ Add" before that lands would hit a property that doesn't exist yet
     // server-side. Since the add button only becomes clickable once this
     // resolves with a real property (see addBtn.disabled below), a short

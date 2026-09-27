@@ -16,8 +16,8 @@
   // to a full roll-template chat message
   // ("&{template:default} {{roll=[[1d20+@{mod}]]}} {{label=Attack}}"). This
   // runtime doesn't implement Roll20's own &{template:...} rendering for
-  // generic buttons — that's RollTemplate.jsx's job for hand-ported cards,
-  // which has actual React state to render into. Here, just the dice
+  // generic buttons (tools/rollTemplateEngine.mjs does that when the
+  // platform's roll API is available). Here, just the dice
   // formula is extracted and fired through the platform's own generic roll
   // display (the same chat message every human "/roll" produces).
   //

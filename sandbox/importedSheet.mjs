@@ -26,7 +26,7 @@ export const outDir = path.join(sandboxDir, "output");
 
 export const CORPUS_DIR =
   process.env.ROLL20_SHEETS_DIR ??
-  path.resolve(repoRoot, "../../roll20-analysis/roll20-character-sheets-master/roll20-character-sheets-master");
+  path.resolve(repoRoot, "../../../roll20-analysis/roll20-character-sheets-master/roll20-character-sheets-master");
 
 // The sheets `sandbox:check` runs by default: key (what a GM would type in
 // the importer, and what per-sheet patches are matched on) -> corpus folder.

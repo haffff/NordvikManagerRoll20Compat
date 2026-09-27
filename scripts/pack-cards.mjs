@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Packs every card under card_sources/ into addon_files/Resources and zips the
-// result. Two differences from NordvikManagerCards/scripts/pack-cards.mjs (the
+// result. Two differences from NordvikManager-DND's scripts/pack-cards.mjs (the
 // dnd5e addon's packer, which this was forked from):
 //   1. Cards are discovered by globbing card_sources/* instead of a hardcoded
 //      list — adding a new ported sheet needs no changes here.

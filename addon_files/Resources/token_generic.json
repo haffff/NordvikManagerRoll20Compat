@@ -337,44 +337,6 @@
       }
     },
     {
-      "name": "name_label",
-      "type": "text",
-      "left": 0,
-      "top": 0,
-      "width": 100,
-      "height": 12,
-      "originX": "center",
-      "originY": "top",
-      "text": "",
-      "fontSize": 11,
-      "fontFamily": "Arial",
-      "fontWeight": "bold",
-      "fill": "rgba(255,255,255,0.95)",
-      "stroke": "rgba(0,0,0,0.8)",
-      "strokeWidth": 0.5,
-      "textAlign": "center",
-      "scaleX": 1,
-      "scaleY": 1,
-      "angle": 0,
-      "opacity": 1,
-      "visible": true,
-      "tokenData": {
-        "anchor": "bottom",
-        "offsetX": 0,
-        "offsetY": 31,
-        "maskGroup": "name",
-        "label": "Name Label",
-        "propDeps": [
-          {
-            "dtoProperty": "character_name",
-            "objectProperty": "text",
-            "type": "string",
-            "source": "card"
-          }
-        ]
-      }
-    },
-    {
       "name": "open_card_btn",
       "type": "reactIcon",
       "iconPack": "gi",

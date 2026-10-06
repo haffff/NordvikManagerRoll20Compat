@@ -32,37 +32,43 @@
       "name": "bar1_value",
       "dtoProperty": "bar1_value",
       "label": "Bar 1",
-      "source": "card"
+      "source": "card",
+      "group": "bar1"
     },
     {
       "name": "bar1_max",
       "dtoProperty": "bar1_max",
       "label": "Bar 1 max",
-      "source": "card"
+      "source": "card",
+      "group": "bar1"
     },
     {
       "name": "bar2_value",
       "dtoProperty": "bar2_value",
       "label": "Bar 2",
-      "source": "card"
+      "source": "card",
+      "group": "bar2"
     },
     {
       "name": "bar2_max",
       "dtoProperty": "bar2_max",
       "label": "Bar 2 max",
-      "source": "card"
+      "source": "card",
+      "group": "bar2"
     },
     {
       "name": "bar3_value",
       "dtoProperty": "bar3_value",
       "label": "Bar 3",
-      "source": "card"
+      "source": "card",
+      "group": "bar3"
     },
     {
       "name": "bar3_max",
       "dtoProperty": "bar3_max",
       "label": "Bar 3 max",
-      "source": "card"
+      "source": "card",
+      "group": "bar3"
     }
   ],
   "assignableIcons": [

@@ -12,5 +12,6 @@
       "value": "roll20compat_token_generic.json"
     }
   ],
-  "token": "roll20compat_token_generic.json"
+  "token": "roll20compat_token_generic.json",
+  "hidden": true
 }

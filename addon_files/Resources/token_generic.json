@@ -29,6 +29,14 @@
   },
   "editableProps": [
     {
+      "name": "mask_bars_enabled",
+      "dtoProperty": "mask_bars_enabled",
+      "label": "Show bars",
+      "source": "element",
+      "type": "boolean",
+      "default": true
+    },
+    {
       "name": "bar1_value",
       "dtoProperty": "bar1_value",
       "label": "Bar 1",
@@ -145,8 +153,8 @@
         "anchor": "bottom",
         "offsetX": 0,
         "offsetY": 4,
-        "maskGroup": "bar1",
-        "label": "Bar 1"
+        "maskGroup": "bars",
+        "label": "Bars"
       }
     },
     {
@@ -172,8 +180,8 @@
         "anchor": "bottom",
         "offsetX": 0,
         "offsetY": 4,
-        "maskGroup": "bar1",
-        "label": "Bar 1",
+        "maskGroup": "bars",
+        "label": "Bars",
         "propDeps": [
           {
             "expression": "FromTo(%bar1_value%, 0, %bar1_max%, 0, 100)",
@@ -213,8 +221,8 @@
         "anchor": "bottom",
         "offsetX": 0,
         "offsetY": 13,
-        "maskGroup": "bar2",
-        "label": "Bar 2",
+        "maskGroup": "bars",
+        "label": "Bars",
         "propDeps": [
           {
             "expression": "Math(0%bar2_max%, value > 0)",
@@ -248,8 +256,8 @@
         "anchor": "bottom",
         "offsetX": 0,
         "offsetY": 13,
-        "maskGroup": "bar2",
-        "label": "Bar 2",
+        "maskGroup": "bars",
+        "label": "Bars",
         "propDeps": [
           {
             "expression": "FromTo(%bar2_value%, 0, %bar2_max%, 0, 100)",
@@ -289,8 +297,8 @@
         "anchor": "bottom",
         "offsetX": 0,
         "offsetY": 22,
-        "maskGroup": "bar3",
-        "label": "Bar 3",
+        "maskGroup": "bars",
+        "label": "Bars",
         "propDeps": [
           {
             "expression": "Math(0%bar3_max%, value > 0)",
@@ -324,8 +332,8 @@
         "anchor": "bottom",
         "offsetX": 0,
         "offsetY": 22,
-        "maskGroup": "bar3",
-        "label": "Bar 3",
+        "maskGroup": "bars",
+        "label": "Bars",
         "propDeps": [
           {
             "expression": "FromTo(%bar3_value%, 0, %bar3_max%, 0, 100)",

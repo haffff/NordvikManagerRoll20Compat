@@ -312,6 +312,9 @@
           computed: computed ?? {},
           translate,
         });
+        // Only the sheet's own templates assume Roll20's message padding;
+        // the built-in default template doesn't need it.
+        if (own) html = E.wrapInRoll20Message(html);
       } else {
         html = E.renderPlainRollMessage(prepared.extracted.text, translate, prepared.rolls);
       }

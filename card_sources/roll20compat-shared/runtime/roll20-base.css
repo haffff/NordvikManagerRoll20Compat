@@ -181,9 +181,31 @@ body {
   background: #e0e0e0;
 }
 
+/* Like Roll20: a row's delete control is hidden until Modify (.editmode),
+ * and then floats over the row's top-right corner instead of taking a place
+ * in the row's own layout (a grid cell, in sheets whose rows are grids). */
+.ui-dialog .charsheet .repitem {
+  position: relative;
+}
+
 .ui-dialog .charsheet .itemcontrol {
-  display: flex;
+  display: none;
   gap: 3px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.ui-dialog .charsheet .repcontainer.editmode > .repitem > .itemcontrol {
+  display: flex;
+}
+
+.ui-dialog .charsheet .repcontainer.editmode + .repcontrol .repcontrol_add {
+  display: none;
+}
+
+.ui-dialog .charsheet .repcontrol_edit {
   float: right;
 }
 

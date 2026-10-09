@@ -95,7 +95,23 @@
     return `-local${Date.now().toString(36)}${rowIdCounter.toString(36)}`;
   }
 
-  Roll20Compat.SheetWorkerLogic = { parseRepeatingKey, parseEventSpec, generateRowID, ROWID_RE };
+  // Roll20's row context: inside a repeating row's change/clicked handler
+  // (and the callbacks it passes to getAttrs/getSectionIDs/setAttrs),
+  // "repeating_<section>_<field>" with no row id means that row — Imperium
+  // Maledictum computes its specialisation Total this way. The part after the
+  // section is a real row id when the row exists or it has Roll20's leading
+  // "-" (generateRowID()'s ids, for rows not created yet); otherwise, in that
+  // section's context, the whole remainder is the field name.
+  function resolveRepeatingKey(key, knownSectionNames, { context = null, isKnownRow = () => false } = {}) {
+    const parsed = parseRepeatingKey(key, knownSectionNames);
+    if (!context || typeof key !== "string" || !key.startsWith(`repeating_${context.section}_`)) return parsed;
+    if (parsed && parsed.section !== context.section) return parsed;
+    if (parsed && (parsed.rowId.startsWith("-") || isKnownRow(parsed.section, parsed.rowId))) return parsed;
+    const field = key.slice(`repeating_${context.section}_`.length);
+    return field ? { section: context.section, rowId: context.rowId, field } : parsed;
+  }
+
+  Roll20Compat.SheetWorkerLogic = { parseRepeatingKey, resolveRepeatingKey, parseEventSpec, generateRowID, ROWID_RE };
 
   // ── DOM glue ───────────────────────────────────────────────────────────
 
@@ -196,12 +212,31 @@
     // registered for the same event, which is what a sheet's other features
     // silently depended on.
     function runListener(cb, eventInfo, what) {
+      const row = eventInfo.section && eventInfo.rowId ? { section: eventInfo.section, rowId: eventInfo.rowId } : null;
       try {
-        cb(eventInfo);
+        withRow(row, () => cb(eventInfo));
       } catch (err) {
         console.error(`Roll20Compat: a sheet worker ${what} handler failed`, err);
       }
     }
+
+    // The row a repeating event's handler runs for (see resolveRepeatingKey).
+    // getAttrs/getSectionIDs/setAttrs capture it when called and restore it
+    // around their callback, so it carries through nested callbacks like on
+    // Roll20.
+    let activeRow = null;
+    function withRow(row, fn) {
+      const previous = activeRow;
+      activeRow = row;
+      try {
+        return fn();
+      } finally {
+        activeRow = previous;
+      }
+    }
+    const isKnownRow = (section, rowId) => !!repeating.sections[section]?.getItem(rowId);
+    const resolveKey = (key, row) =>
+      resolveRepeatingKey(key, Object.keys(repeating.sections), { context: row, isKnownRow });
 
     // Roll20's eventInfo: newValue/previousValue/sourceType/triggerName on
     // top of sourceAttribute (sheets read all of them — Warhammer Fantasy
@@ -284,14 +319,17 @@
         prevItemsBySection[section] = items;
       };
 
-      cardApi.Properties.Get(section).then((prop) => {
+      // The section's own list property ("repeating_<name>", see
+      // repeatingBinding.js) — subscribing to the bare name meant no
+      // change:repeating_* handler ever fired.
+      cardApi.Properties.Get(sectionApi.propertyKey).then((prop) => {
         try {
           prevItemsBySection[section] = JSON.parse(prop?.value || "[]");
         } catch {
           prevItemsBySection[section] = [];
         }
       });
-      cardApi.Properties.Subscribe(section, (prop) => {
+      cardApi.Properties.Subscribe(sectionApi.propertyKey, (prop) => {
         try {
           diff(JSON.parse(prop?.value || "[]"));
         } catch {
@@ -325,11 +363,13 @@
     // ── getAttrs / setAttrs ─────────────────────────────────────────────
 
     async function getAttrs(names, cb) {
-      const knownSections = Object.keys(repeating.sections);
+      const row = activeRow;
+      // Whether a key names a row depends on the rows being loaded.
+      if (row) await repeating.sections[row.section]?.whenReady();
       const result = {};
       await Promise.all(
         names.map(async (key) => {
-          const parsed = parseRepeatingKey(key, knownSections);
+          const parsed = resolveKey(key, row);
           if (parsed) {
             const sectionApi = repeating.sections[parsed.section];
             if (!sectionApi) {
@@ -345,19 +385,20 @@
           }
         })
       );
-      cb(result);
+      withRow(row, () => cb(result));
     }
 
     async function setAttrs(values, optsOrCb, maybeCb) {
       const isOptsFn = typeof optsOrCb === "function";
       const opts = isOptsFn ? {} : optsOrCb || {};
       const cb = isOptsFn ? optsOrCb : maybeCb;
-      const knownSections = Object.keys(repeating.sections);
+      const row = activeRow;
+      if (row) await repeating.sections[row.section]?.whenReady();
 
       const plain = {};
       const bySection = new Map(); // section -> Map(rowId -> fields)
       for (const [key, value] of Object.entries(values)) {
-        const parsed = parseRepeatingKey(key, knownSections);
+        const parsed = resolveKey(key, row);
         if (!parsed) {
           plain[key] = value;
           continue;
@@ -375,13 +416,13 @@
       // (each browser's sheet-worker instance decides for itself).
       if (opts.silent) {
         for (const [key, value] of Object.entries(values)) {
-          const parsed = parseRepeatingKey(key, knownSections);
+          const parsed = resolveKey(key, row);
           lastFired[parsed ? `${parsed.section}/${parsed.rowId}/${parsed.field}` : key] = value;
         }
       }
 
       for (const [key, value] of Object.entries(values)) {
-        const parsed = parseRepeatingKey(key, knownSections);
+        const parsed = resolveKey(key, row);
         workerWrites.set(parsed ? `${parsed.section}/${parsed.rowId}/${parsed.field}` : key, String(value ?? ""));
       }
 
@@ -413,16 +454,17 @@
         }
       }
 
-      if (cb) cb();
+      if (cb) withRow(row, cb);
     }
 
     function getSectionIDs(sectionName, cb) {
+      const row = activeRow;
       const sectionApi = repeating.sections[sectionName];
       if (!sectionApi) {
-        cb([]);
+        withRow(row, () => cb([]));
         return;
       }
-      sectionApi.whenReady().then(() => cb(sectionApi.getSectionIDs()));
+      sectionApi.whenReady().then(() => withRow(row, () => cb(sectionApi.getSectionIDs())));
     }
 
     function removeRepeatingRow(rowId) {

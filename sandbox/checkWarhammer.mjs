@@ -74,8 +74,10 @@ async function main() {
     started
   );
   check(
-    "the roll is posted with the sheet's own wfrp template and its roll placeholder",
-    !!finished && finished.html.startsWith('<div class="sheet-rolltemplate-wfrp">') && finished.html.includes("data-roll-key="),
+    "the roll is posted with the sheet's own wfrp template, inside Roll20's chat message box, and its roll placeholder",
+    !!finished &&
+      finished.html.startsWith('<div class="textchatcontainer"><div class="message rollresult" style="padding:5px 5px 4px 45px"><div class="sheet-rolltemplate-wfrp">') &&
+      finished.html.includes("data-roll-key="),
     finished && finished.html.slice(0, 200)
   );
 

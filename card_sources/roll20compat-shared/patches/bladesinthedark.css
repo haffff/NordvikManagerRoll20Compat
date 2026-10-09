@@ -30,19 +30,23 @@
   font-size: 16px;
 }
 
-/* Repeating-section "+Add" button (repeatingBinding.js's own generated
- * button, textContent "+Add") — the sheet's own
+/* Repeating-section "+Add" and "Modify"/"Done" buttons (repeatingBinding.js's
+ * own generated buttons; the sheet draws Modify as pictos "(" and Done as
+ * ")" the same way) — the sheet's own
  * ".repcontrol button { font-size: 0; font-family: pictos }" rule hides
  * that text entirely and relies on a companion ::after rule (content: "&")
  * to show a pictos-remapped icon instead. Restoring font-size makes the
  * button's own "+Add" text legible again; the ::after rule's content is
  * suppressed entirely (not remapped to its own icon glyph) so the result
  * is a clean "+Add", not a duplicated "+Add&"/"+Add+". */
-.charsheet .repcontrol button.repcontrol_add {
+.charsheet .repcontrol button.repcontrol_add,
+.charsheet .repcontrol button.repcontrol_edit {
   font-family: initial;
   font-size: 14px;
 }
-.charsheet .repcontrol button.repcontrol_add::after {
+.charsheet .repcontrol button.repcontrol_add::after,
+.charsheet .repcontrol button.repcontrol_edit::after,
+.charsheet .repcontainer.editmode + .repcontrol button.repcontrol_edit::after {
   content: "";
 }
 

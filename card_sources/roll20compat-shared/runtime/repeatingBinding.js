@@ -24,15 +24,16 @@
 // targets these classes directly — applies for free, instead of the plain
 // unstyled buttons/rows a from-scratch structure would produce.
 //
-// Deliberately NOT reproduced: `.repcontrol_edit`'s real "Modify" toggle
-// behavior (real Roll20 hides `.itemcontrol` until "Modify" is clicked,
-// confirmed via the reference popout's own CSS —
-// `.repcontainer.editmode .repitem .itemcontrol:has(+ .light-hider...)`)
-// and `.repcontrol_move`'s drag-to-reorder. Both are real Roll20 behaviors
-// this runtime doesn't implement (no reordering support at all yet) —
-// showing a non-functional "Modify"/drag handle would be more misleading
-// than the delete button just always being visible, so this only emits
-// `.itemcontrol > .repcontrol_del` and `.repcontrol > .repcontrol_add`.
+// `.repcontrol_edit`'s "Modify" toggle is reproduced: like real Roll20, a
+// row's `.itemcontrol` is hidden until "Modify" puts `.editmode` on the
+// `.repcontainer` (confirmed via the reference popout's own CSS —
+// `.repcontainer.editmode .repitem .itemcontrol:has(+ .light-hider...)`),
+// and it's positioned out of the row's flow (roll20-base.css). Shown always
+// and in the flow, it took a cell in sheets that lay rows out as a grid
+// (Imperium Maledictum's specialisations), pushing every field a column over.
+// Deliberately NOT reproduced: `.repcontrol_move`'s drag-to-reorder (no
+// reordering support at all yet), so `.itemcontrol` holds only
+// `.repcontrol_del`.
 (function (global) {
   "use strict";
   const Roll20Compat = (global.Roll20Compat = global.Roll20Compat || {});
@@ -85,7 +86,19 @@
   // story (a real, confirmed bug: a within-row "hider"-style toggle whose
   // CSS matches `[value="0"]` directly would never actually hide/show
   // anything from this path either, same root cause).
+  // A non-form element (<span name="attr_x">) shows the value as its text,
+  // like attrBinding.js's "display" kind — setting .value on it did nothing,
+  // so a row's computed fields (Imperium Maledictum's specialisation Total)
+  // never showed.
+  const isDisplayElement = (el) => !/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+  const readElementValue = (el) =>
+    el.type === "checkbox" ? readCheckable(el) : isDisplayElement(el) ? el.textContent : el.value;
+
   function writeElementValue(el, value) {
+    if (isDisplayElement(el)) {
+      el.textContent = value ?? "";
+      return;
+    }
     // Matches this checkbox's OWN value attribute, not a generic truthy
     // check — see attrBinding.js's own writeElementValue for the full
     // "fakeradio" evidence (several checkboxes sharing one row-field name
@@ -126,7 +139,7 @@
       // as attrBinding.js's seedAndGet, but resolved synchronously — a
       // repeating row's fields are fully specified client-side already, no
       // server round-trip needed to know the fallback.
-      const templateDefault = isCheckbox ? readCheckable(el) : el.value;
+      const templateDefault = readElementValue(el);
       writeElementValue(el, item.fields?.[key] ?? templateDefault);
 
       const onInput = () => onFieldCommit(key, isCheckbox ? readCheckable(el) : el.value);
@@ -154,8 +167,7 @@
       // own templateDefault fixes on first render (this function has no
       // access to that original template string, but "leave it as-is" is
       // the correct fallback either way — there's nothing new to show).
-      const isCheckbox = el.type === "checkbox";
-      const current = isCheckbox ? readCheckable(el) : el.value;
+      const current = readElementValue(el);
       writeElementValue(el, item.fields?.[key] ?? current);
     }
   }
@@ -215,9 +227,21 @@
       addBtn.disabled = true;
       addBtn.addEventListener("click", () => cardApi.Properties.List.Add(propertyKey, {}));
 
+      // Roll20's Modify toggle: rows' delete buttons only show in edit mode
+      // (.repcontainer.editmode), and +Add is hidden meanwhile.
+      const editBtn = document.createElement("button");
+      editBtn.type = "button";
+      editBtn.className = "btn repcontrol_edit";
+      editBtn.textContent = "Modify";
+      editBtn.addEventListener("click", () => {
+        const editing = repcontainer.classList.toggle("editmode");
+        editBtn.textContent = editing ? "Done" : "Modify";
+      });
+
       const repcontrol = document.createElement("div");
       repcontrol.className = "repcontrol";
       repcontrol.setAttribute("data-groupname", groupName);
+      repcontrol.appendChild(editBtn);
       repcontrol.appendChild(addBtn);
       repcontainer.parentNode.insertBefore(repcontrol, repcontainer.nextSibling);
 
@@ -348,6 +372,8 @@
     cardApi.Properties.Subscribe(propertyKey, onChange);
 
     return {
+      // The list property this section is stored in ("repeating_<name>").
+      propertyKey,
       whenReady: () => readyPromise,
       getSectionIDs: () => items.map((i) => i.id),
       // itemId is optional — see AddPropertyListItemCommand.ItemId. Used by

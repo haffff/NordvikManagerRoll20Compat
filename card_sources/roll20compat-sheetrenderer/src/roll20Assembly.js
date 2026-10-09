@@ -18,6 +18,7 @@ import translationFillJs from "../../roll20compat-shared/runtime/translationFill
 import sheetWorkerShimJs from "../../roll20compat-shared/runtime/sheetWorkerShim.js?raw";
 import rollDispatchJs from "../../roll20compat-shared/runtime/rollDispatch.js?raw";
 import rollButtonsJs from "../../roll20compat-shared/runtime/rollButtons.js?raw";
+import pictosFallbackJs from "../../roll20compat-shared/runtime/pictosFallback.js?raw";
 import bootstrapJs from "../../roll20compat-shared/runtime/bootstrap.js?raw";
 import roll20BaseCss from "../../roll20compat-shared/runtime/roll20-base.css?raw";
 
@@ -93,6 +94,7 @@ export function assembleRenderableDocument({ mainHtml, workerJs, sheetCss, key }
     ...(workerJs ? [sheetWorkerShimJs] : []),
     rollDispatchJs,
     rollButtonsJs,
+    pictosFallbackJs,
     bootstrapJs,
     ...(workerJs ? [workerJs] : []),
   ];

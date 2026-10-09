@@ -24,7 +24,7 @@ The sheet becomes a new **Template**, owned by the GM, and you create character 
 ## What works
 
 - Every `attr_*` field is stored as a property on the card, and changes sync to everyone viewing it.
-- Repeating sections (`repeating_*`) let you add, remove and edit rows.
+- Repeating sections (`repeating_*`) let you add and edit rows. Like Roll20, a row's delete button shows after you click **Modify** under the section; click **Done** to finish.
 - Sheet workers (`on("change:…")`, `getAttrs`, `setAttrs`, `getSectionIDs`, …) run the sheet's own calculations.
 - Roll buttons and `?{…}` roll queries go to the game's dice and chat. With the platform's roll API, results are posted using the sheet's own `<rolltemplate>`.
 - A sheet's own `translation.json` fills its labels.
@@ -45,7 +45,7 @@ The sheet becomes a new **Template**, owned by the GM, and you create character 
   - Target numbers (`5d6>4`) become success counting.
   - `k`/`d` become `kh`/`dl`.
   - Rerolls (`r`, `ro`), failure counting (`f`) and sorting are passed through unchanged.
-- **Roll20's Pictos icon font isn't available** (it's commercial), so icons drawn with it show as plain letters. A per-sheet CSS patch can swap them for symbols; `patches/bladesinthedark.css` is an example.
+- **Roll20's Pictos icon font isn't available** (it's commercial). Its common icons are shown as similar Unicode symbols instead (check mark, plus, gear, info, pencil, …); less common ones show as the plain letter the sheet wrote. Icons a sheet draws through CSS (`::before`/`::after`) aren't reached that way; a per-sheet CSS patch can swap those, `patches/bladesinthedark.css` is an example.
 - **Sheets imported before roll templates were stored** use Roll20's default template until you re-import them.
 
 ---
@@ -82,6 +82,7 @@ card_sources/
       rollDispatch.js                #   Roll20 formula -> platform /roll command, result correlation
       rollButtons.js                 #   type="roll"/type="action" buttons, ?{...} query dialog
       translationFill.js             #   data-i18n fill from a sheet's own translation.json
+      pictosFallback.js              #   Pictos icon-font glyphs -> Unicode symbols
       bootstrap.js                   #   entry point wiring the above together
       roll20-base.css                #   the layout primitives Roll20's platform CSS normally supplies
     tools/rollTemplateEngine.mjs     # roll messages -> one server batch of inline rolls -> the sheet's <rolltemplate> in chat
@@ -119,8 +120,9 @@ pnpm run sandbox:check       # imports + renders 12 reference sheets (or: sandbo
                              # — console errors, authored defaults, dead CSS selectors, screenshots in sandbox/output/
 pnpm run sandbox:importer    # importer view end to end: upload + GitHub-browse -> Template -> render shell
 pnpm run sandbox:rollquery   # ?{...} roll-query dialog: answer, cancel, Enter
-pnpm run sandbox:interact    # page switching, sheet-script calculations, repeating rows, and a cap on
-                             # CardAPI calls per sheet open (performance guard)
+pnpm run sandbox:interact    # page switching, sheet-script calculations, repeating rows (incl. Modify mode
+                             # and grid layout), and a cap on CardAPI calls per sheet open (performance guard)
+pnpm run sandbox:pictos      # Pictos icon glyphs shown as Unicode symbols, also in rows added later
 pnpm run sandbox:inspect <key> "<JS expression>"        # ad-hoc query against a rendered sheet
 pnpm run sandbox:compare <key> <savedRoll20Popout.html> # structural diff vs a real saved Roll20 page
 ```

@@ -1,0 +1,587 @@
+{
+  "$schema": "https://raw.githubusercontent.com/haffff/NordvikManager-Addons/refs/heads/main/schemas/token.json",
+  "name": "token",
+  "prefix": "token",
+  "size": 1,
+  "object": {
+    "type": "image",
+    "version": "5.3.0",
+    "originX": "left",
+    "originY": "top",
+    "fill": "rgb(0,0,0)",
+    "stroke": null,
+    "strokeWidth": 0,
+    "strokeDashArray": null,
+    "strokeLineCap": "butt",
+    "strokeDashOffset": 0,
+    "strokeLineJoin": "miter",
+    "strokeUniform": false,
+    "strokeMiterLimit": 4,
+    "angle": 0,
+    "opacity": 1,
+    "visible": true,
+    "fillRule": "nonzero",
+    "paintFirst": "fill",
+    "globalCompositeOperation": "source-over",
+    "crossOrigin": null,
+    "filters": [],
+    "clipShape": "circle"
+  },
+  "editableProps": [
+    {
+      "name": "mask_bars_enabled",
+      "dtoProperty": "mask_bars_enabled",
+      "label": "Show bars",
+      "source": "element",
+      "type": "boolean",
+      "default": true
+    },
+    {
+      "name": "bar1_value",
+      "dtoProperty": "bar1_value",
+      "label": "Bar 1",
+      "source": "card",
+      "group": "bar1"
+    },
+    {
+      "name": "bar1_max",
+      "dtoProperty": "bar1_max",
+      "label": "Bar 1 max",
+      "source": "card",
+      "group": "bar1"
+    },
+    {
+      "name": "bar2_value",
+      "dtoProperty": "bar2_value",
+      "label": "Bar 2",
+      "source": "card",
+      "group": "bar2"
+    },
+    {
+      "name": "bar2_max",
+      "dtoProperty": "bar2_max",
+      "label": "Bar 2 max",
+      "source": "card",
+      "group": "bar2"
+    },
+    {
+      "name": "bar3_value",
+      "dtoProperty": "bar3_value",
+      "label": "Bar 3",
+      "source": "card",
+      "group": "bar3"
+    },
+    {
+      "name": "bar3_max",
+      "dtoProperty": "bar3_max",
+      "label": "Bar 3 max",
+      "source": "card",
+      "group": "bar3"
+    }
+  ],
+  "assignableIcons": [
+    {
+      "id": "poisoned",
+      "label": "Poisoned",
+      "iconPack": "gi",
+      "iconName": "GiPoisonBottle",
+      "dtoProperty": "status_poisoned",
+      "source": "card"
+    },
+    {
+      "id": "stunned",
+      "label": "Stunned",
+      "iconPack": "gi",
+      "iconName": "GiKnockout",
+      "dtoProperty": "status_stunned",
+      "source": "card"
+    },
+    {
+      "id": "bleeding",
+      "label": "Bleeding",
+      "iconPack": "gi",
+      "iconName": "GiBleedingWound",
+      "dtoProperty": "status_bleeding",
+      "source": "card"
+    },
+    {
+      "id": "prone",
+      "label": "Prone",
+      "iconPack": "gi",
+      "iconName": "GiFalling",
+      "dtoProperty": "status_prone",
+      "source": "card"
+    },
+    {
+      "id": "invisible",
+      "label": "Invisible",
+      "iconPack": "gi",
+      "iconName": "GiInvisible",
+      "dtoProperty": "status_invisible",
+      "source": "card"
+    },
+    {
+      "id": "dead",
+      "label": "Dead",
+      "iconPack": "gi",
+      "iconName": "GiDeathSkull",
+      "dtoProperty": "status_dead",
+      "source": "card"
+    }
+  ],
+  "additions": [
+    {
+      "name": "bar1_bg",
+      "type": "rect",
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 8,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(20,20,20,0.75)",
+      "stroke": "rgba(0,0,0,0.5)",
+      "strokeWidth": 1,
+      "rx": 3,
+      "ry": 3,
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": true,
+      "tokenData": {
+        "anchor": "bottom",
+        "offsetX": 0,
+        "offsetY": 4,
+        "maskGroup": "bars",
+        "label": "Bars"
+      }
+    },
+    {
+      "name": "bar1_fill",
+      "type": "rect",
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 8,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(50,200,50,0.9)",
+      "stroke": null,
+      "strokeWidth": 0,
+      "rx": 3,
+      "ry": 3,
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": true,
+      "tokenData": {
+        "anchor": "bottom",
+        "offsetX": 0,
+        "offsetY": 4,
+        "maskGroup": "bars",
+        "label": "Bars",
+        "propDeps": [
+          {
+            "expression": "FromTo(%bar1_value%, 0, %bar1_max%, 0, 100)",
+            "objectProperty": "width",
+            "type": "number",
+            "source": "card"
+          },
+          {
+            "expression": "FromToEnum(%bar1_value%, 0, %bar1_max%, 0, 100, rgba(200,50,50,0.9), [{\"min\":0,\"max\":25,\"enumValue\":\"rgba(200,50,50,0.9)\"},{\"min\":25,\"max\":50,\"enumValue\":\"rgba(200,160,50,0.9)\"},{\"min\":50,\"max\":9999,\"enumValue\":\"rgba(50,200,50,0.9)\"}])",
+            "objectProperty": "fill",
+            "type": "string",
+            "source": "card"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bar2_bg",
+      "type": "rect",
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 8,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(20,20,20,0.75)",
+      "stroke": "rgba(0,0,0,0.5)",
+      "strokeWidth": 1,
+      "rx": 3,
+      "ry": 3,
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "bottom",
+        "offsetX": 0,
+        "offsetY": 13,
+        "maskGroup": "bars",
+        "label": "Bars",
+        "propDeps": [
+          {
+            "expression": "Math(0%bar2_max%, value > 0)",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bar2_fill",
+      "type": "rect",
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 8,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(60,130,230,0.9)",
+      "stroke": null,
+      "strokeWidth": 0,
+      "rx": 3,
+      "ry": 3,
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "bottom",
+        "offsetX": 0,
+        "offsetY": 13,
+        "maskGroup": "bars",
+        "label": "Bars",
+        "propDeps": [
+          {
+            "expression": "FromTo(%bar2_value%, 0, %bar2_max%, 0, 100)",
+            "objectProperty": "width",
+            "type": "number",
+            "source": "card"
+          },
+          {
+            "expression": "Math(0%bar2_max%, value > 0)",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bar3_bg",
+      "type": "rect",
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 8,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(20,20,20,0.75)",
+      "stroke": "rgba(0,0,0,0.5)",
+      "strokeWidth": 1,
+      "rx": 3,
+      "ry": 3,
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "bottom",
+        "offsetX": 0,
+        "offsetY": 22,
+        "maskGroup": "bars",
+        "label": "Bars",
+        "propDeps": [
+          {
+            "expression": "Math(0%bar3_max%, value > 0)",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ]
+      }
+    },
+    {
+      "name": "bar3_fill",
+      "type": "rect",
+      "left": 0,
+      "top": 0,
+      "width": 100,
+      "height": 8,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(200,60,60,0.9)",
+      "stroke": null,
+      "strokeWidth": 0,
+      "rx": 3,
+      "ry": 3,
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "bottom",
+        "offsetX": 0,
+        "offsetY": 22,
+        "maskGroup": "bars",
+        "label": "Bars",
+        "propDeps": [
+          {
+            "expression": "FromTo(%bar3_value%, 0, %bar3_max%, 0, 100)",
+            "objectProperty": "width",
+            "type": "number",
+            "source": "card"
+          },
+          {
+            "expression": "Math(0%bar3_max%, value > 0)",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ]
+      }
+    },
+    {
+      "name": "open_card_btn",
+      "type": "reactIcon",
+      "iconPack": "gi",
+      "iconName": "GiNotebook",
+      "left": 0,
+      "top": 0,
+      "width": 20,
+      "height": 20,
+      "originX": "center",
+      "originY": "bottom",
+      "fill": "rgba(255,255,255,0.95)",
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "cursor": "pointer",
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "top",
+        "offsetX": 0,
+        "offsetY": -4,
+        "showOnTokenControl": true,
+        "maskGroup": "opencard",
+        "label": "Open Card Button",
+        "actions": {
+          "onClick": {
+            "ClientMediatorAction": {
+              "panel": "Game",
+              "command": "CreateNewPanel",
+              "data": {
+                "type": "CardPanel",
+                "props": {
+                  "id": "{{cardId}}"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "status_poisoned",
+      "type": "reactIcon",
+      "iconPack": "gi",
+      "iconName": "GiPoisonBottle",
+      "left": 0,
+      "top": 0,
+      "width": 18,
+      "height": 18,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(140,200,60,0.95)",
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "right-top",
+        "offsetX": 0,
+        "offsetY": 0,
+        "propDeps": [
+          {
+            "dtoProperty": "status_poisoned",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ],
+        "label": "Poisoned"
+      }
+    },
+    {
+      "name": "status_stunned",
+      "type": "reactIcon",
+      "iconPack": "gi",
+      "iconName": "GiKnockout",
+      "left": 0,
+      "top": 0,
+      "width": 18,
+      "height": 18,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(240,210,80,0.95)",
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "right-top",
+        "offsetX": 0,
+        "offsetY": 0,
+        "propDeps": [
+          {
+            "dtoProperty": "status_stunned",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ],
+        "label": "Stunned"
+      }
+    },
+    {
+      "name": "status_bleeding",
+      "type": "reactIcon",
+      "iconPack": "gi",
+      "iconName": "GiBleedingWound",
+      "left": 0,
+      "top": 0,
+      "width": 18,
+      "height": 18,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(210,40,40,0.95)",
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "right-top",
+        "offsetX": 0,
+        "offsetY": 0,
+        "propDeps": [
+          {
+            "dtoProperty": "status_bleeding",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ],
+        "label": "Bleeding"
+      }
+    },
+    {
+      "name": "status_prone",
+      "type": "reactIcon",
+      "iconPack": "gi",
+      "iconName": "GiFalling",
+      "left": 0,
+      "top": 0,
+      "width": 18,
+      "height": 18,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(200,160,110,0.95)",
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "right-top",
+        "offsetX": 0,
+        "offsetY": 0,
+        "propDeps": [
+          {
+            "dtoProperty": "status_prone",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ],
+        "label": "Prone"
+      }
+    },
+    {
+      "name": "status_invisible",
+      "type": "reactIcon",
+      "iconPack": "gi",
+      "iconName": "GiInvisible",
+      "left": 0,
+      "top": 0,
+      "width": 18,
+      "height": 18,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(170,200,255,0.95)",
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "right-top",
+        "offsetX": 0,
+        "offsetY": 0,
+        "propDeps": [
+          {
+            "dtoProperty": "status_invisible",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ],
+        "label": "Invisible"
+      }
+    },
+    {
+      "name": "status_dead",
+      "type": "reactIcon",
+      "iconPack": "gi",
+      "iconName": "GiDeathSkull",
+      "left": 0,
+      "top": 0,
+      "width": 18,
+      "height": 18,
+      "originX": "center",
+      "originY": "top",
+      "fill": "rgba(235,235,235,0.95)",
+      "scaleX": 1,
+      "scaleY": 1,
+      "angle": 0,
+      "opacity": 1,
+      "visible": false,
+      "tokenData": {
+        "anchor": "right-top",
+        "offsetX": 0,
+        "offsetY": 0,
+        "propDeps": [
+          {
+            "dtoProperty": "status_dead",
+            "objectProperty": "visible",
+            "type": "bool",
+            "source": "card"
+          }
+        ],
+        "label": "Dead"
+      }
+    }
+  ]
+}

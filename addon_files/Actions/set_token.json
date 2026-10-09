@@ -1,0 +1,17 @@
+{
+    "name": "set_token",
+    "hook": 0,
+    "prefix": "roll20compat",
+    "isEnabled": true,
+    "content": [
+        {
+            "Data": {
+                "Label": "Use the generic Roll20 token for this sheet",
+                "ParentId": "%v:sheetProp.ParentID%",
+                "PropertyName": "token",
+                "PropertyValue": "roll20compat_token_generic.json"
+            },
+            "Type": "SetProperty"
+        }
+    ]
+}

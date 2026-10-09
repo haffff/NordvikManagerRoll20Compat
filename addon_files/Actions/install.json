@@ -4,8 +4,29 @@
   "isEnabled": true,
   "content": [
     {
-      "Data": { "Label": "Create menus", "Name": "", "Value": "roll20compat/create_menus" },
+      "Data": {
+        "Label": "Create menus",
+        "Name": "",
+        "Value": "roll20compat/create_menus"
+      },
       "Type": "ExecuteAction"
+    },
+    {
+      "Data": {
+        "Label": "Find sheets imported before the generic token existed (templates and their characters)",
+        "PropertyNames": "roll20compat_content_id",
+        "Output": "importedSheets"
+      },
+      "Type": "QueryProperties"
+    },
+    {
+      "Data": {
+        "Label": "Give each of them the generic token",
+        "Collection": "importedSheets",
+        "ItemName": "sheetProp",
+        "Action": "roll20compat/set_token"
+      },
+      "Type": "ForEach"
     }
   ],
   "gmPermission": 31

@@ -30,6 +30,7 @@ require("../card_sources/roll20compat-shared/runtime/translationFill.js");
 require("../card_sources/roll20compat-shared/runtime/sheetWorkerShim.js");
 require("../card_sources/roll20compat-shared/runtime/rollDispatch.js");
 require("../card_sources/roll20compat-shared/runtime/rollButtons.js");
+require("../card_sources/roll20compat-shared/runtime/pictosFallback.js");
 // bootstrap.js has no pure logic to test (it's the DOM/CardAPI orchestration
 // entry point — see its own header) — required here only to catch syntax
 // errors early. It no-ops safely in Node (no window.CardAPI, no DOM).
@@ -39,6 +40,7 @@ const { RepeatingLogic } = globalThis.Roll20Compat;
 const { SheetWorkerLogic } = globalThis.Roll20Compat;
 const { RollDispatchLogic, FormulaTranslation } = globalThis.Roll20Compat;
 const { RollButtonsLogic } = globalThis.Roll20Compat;
+const { PictosLogic } = globalThis.Roll20Compat;
 
 let failures = 0;
 const check = (label, actual, expected) => {
@@ -1000,6 +1002,71 @@ const { PropertyStore } = globalThis.Roll20Compat;
     [["GetProperties"]]
   );
 }
+
+check(
+  "RollTemplateEngine: wrapInRoll20Message puts a sheet's template in Roll20's chat message box (padding 5px 5px 4px 45px), which templates like Blades in the Dark's (margin: 0 -5px -4px -45px) are written to cancel",
+  RollTemplateEngine.wrapInRoll20Message('<div class="sheet-rolltemplate-blades">x</div>'),
+  '<div class="textchatcontainer"><div class="message rollresult" style="padding:5px 5px 4px 45px"><div class="sheet-rolltemplate-blades">x</div></div></div>'
+);
+
+// Roll20's row context: inside a repeating row's change/clicked handler,
+// "repeating_<section>_<field>" (no row id) means that row. Imperium
+// Maledictum's specialisation Total is computed exactly that way.
+{
+  const rows = new Set(["3f2a9c0e1b2d4e5f8a7b6c5d4e3f2a1b"]);
+  const opts = (context) => ({ context, isKnownRow: (section, id) => section === "specialisations" && rows.has(id) });
+  const sections = ["specialisations", "powers"];
+  const row = { section: "specialisations", rowId: "3f2a9c0e1b2d4e5f8a7b6c5d4e3f2a1b" };
+  check(
+    "resolveRepeatingKey: a key without a row id means the handler's current row",
+    SheetWorkerLogic.resolveRepeatingKey("repeating_specialisations_specialisation_total", sections, opts(row)),
+    { section: "specialisations", rowId: "3f2a9c0e1b2d4e5f8a7b6c5d4e3f2a1b", field: "specialisation_total" }
+  );
+  check(
+    "resolveRepeatingKey: an explicit existing row id is kept, even inside a row's handler",
+    SheetWorkerLogic.resolveRepeatingKey("repeating_specialisations_3f2a9c0e1b2d4e5f8a7b6c5d4e3f2a1b_specialisation_name", sections, opts(row)),
+    { section: "specialisations", rowId: "3f2a9c0e1b2d4e5f8a7b6c5d4e3f2a1b", field: "specialisation_name" }
+  );
+  check(
+    "resolveRepeatingKey: a Roll20-style row id (leading -) is explicit, e.g. a new row from generateRowID()",
+    SheetWorkerLogic.resolveRepeatingKey("repeating_specialisations_-newrow1_specialisation_name", sections, opts(row)),
+    { section: "specialisations", rowId: "-newrow1", field: "specialisation_name" }
+  );
+  check(
+    "resolveRepeatingKey: another section's key keeps the old reading (the context is for its own section only)",
+    SheetWorkerLogic.resolveRepeatingKey("repeating_powers_abc_power_total", sections, opts(row)),
+    { section: "powers", rowId: "abc", field: "power_total" }
+  );
+  check(
+    "resolveRepeatingKey: outside any row's handler, the old reading",
+    SheetWorkerLogic.resolveRepeatingKey("repeating_specialisations_specialisation_total", sections, opts(null)),
+    { section: "specialisations", rowId: "specialisation", field: "total" }
+  );
+  check(
+    "resolveRepeatingKey: a plain attribute is not repeating",
+    SheetWorkerLogic.resolveRepeatingKey("athletics", sections, opts(row)),
+    null
+  );
+}
+
+// Roll20's Pictos icon font is commercial, so it isn't bundled: text set in
+// it showed as the raw letters ("y" for a gear, "3" for a check mark).
+check(
+  "PictosLogic.isPictosFont: only when Pictos is the font actually asked for first (not pictos-three/pictos-custom, which are other fonts)",
+  ['pictos', '"Pictos", sans-serif', "'pictos'", 'Georgia, pictos', 'pictos-three', 'pictos-custom', ''].map(PictosLogic.isPictosFont),
+  [true, true, true, false, false, false, false]
+);
+check(
+  "PictosLogic.mapText: known glyphs become Unicode symbols (3 check mark, & plus, + circled plus, x hammer and wrench, y gear, i info, p pencil, _ minus), surrounding whitespace dropped",
+  ["3", "&", "+", "x", "y", "i", "p", "_", " y "].map(PictosLogic.mapText),
+  ["✓", "+", "⊕", "⚒", "⚙", "ℹ", "✎", "−", "⚙"]
+);
+check(
+  "PictosLogic.mapText: null (left as authored) for unknown glyphs, empty text and anything longer than a few icons",
+  ["Q", "3Q", "", "   ", "yyyy", "Settings"].map(PictosLogic.mapText),
+  [null, null, null, null, null, null]
+);
+check("PictosLogic.mapText: a short run of known glyphs maps each one", PictosLogic.mapText("&_"), "+−");
 
 console.log(failures === 0 ? "\nAll smoke checks passed." : `\n${failures} smoke check(s) FAILED.`);
 process.exit(failures === 0 ? 0 : 1);

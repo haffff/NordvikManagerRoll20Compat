@@ -5,5 +5,13 @@
   "mainResource": "roll20compat_roll20sheet_index.html",
   "additionalResources": [
     "roll20compat_roll20compat-sheetrenderer.js"
-  ]
+  ],
+  "properties": [
+    {
+      "name": "token",
+      "value": "roll20compat_token_generic.json"
+    }
+  ],
+  "token": "roll20compat_token_generic.json",
+  "hidden": true
 }

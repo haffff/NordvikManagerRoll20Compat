@@ -11,7 +11,8 @@
     "sandbox:compare": "node sandbox/compareReference.mjs",
     "sandbox:importer": "node sandbox/checkImporter.mjs && node sandbox/checkImporterGithub.mjs",
     "sandbox:rollquery": "node sandbox/checkRollQuery.mjs",
-    "sandbox:interact": "node sandbox/checkInteractions.mjs && node sandbox/checkWarhammer.mjs"
+    "sandbox:interact": "node sandbox/checkInteractions.mjs && node sandbox/checkWarhammer.mjs",
+    "sandbox:pictos": "node sandbox/checkPictos.mjs"
   },
   "devDependencies": {
     "archiver": "^7.0.1",

@@ -112,11 +112,11 @@ export function assembleCardHtml(manifest) {
   });
   const cssStyles = metas
     .filter((m) => m.mimeType === "text/css" && m.data)
-    .map((m) => `<link rel="stylesheet" href="data:text/css;base64,${m.data}">`)
+    .map((m) => `<link rel="stylesheet" href="data:text/css;charset=utf-8;base64,${m.data}">`)
     .join("\n");
   const jsScripts = metas
     .filter((m) => m.mimeType === "text/javascript" && m.data)
-    .map((m) => `<script src="data:text/javascript;base64,${m.data}"></script>`)
+    .map((m) => `<script src="data:text/javascript;charset=utf-8;base64,${m.data}"></script>`)
     .join("\n");
   let html = cssStyles
     ? rawHtml.includes("</head>")

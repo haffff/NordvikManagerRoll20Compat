@@ -92,6 +92,84 @@ async function main() {
   const rowsAfter = await rows.count();
   check("clicking +Add adds a repeating row", rowsAfter === rowsBefore + 1, { rowsBefore, rowsAfter });
 
+  // Roll20's Modify mode. The row's delete control (.itemcontrol) is hidden
+  // until "Modify" is clicked and is positioned out of the row's flow: the
+  // sheet lays each row out as a 4-column grid (Specialisation, Skill, ADV,
+  // Total), and a delete control taking a grid cell pushed every field one
+  // column right (the skill showed under ADV).
+  const section = '[data-groupname="repeating_specialisations"]';
+  const rowLayout = () =>
+    frame.evaluate((sel) => {
+      const header = document.querySelector(`fieldset.repeating_specialisations`).previousElementSibling;
+      const row = document.querySelector(`.repcontainer${sel} .repitem:last-child`);
+      const del = row.querySelector(".repcontrol_del");
+      const box = (el) => el.getBoundingClientRect();
+      return {
+        headerLeft: Math.round(box(header.children[0]).left),
+        nameLeft: Math.round(box(row.querySelector('[name="attr_specialisation_name"]')).left),
+        skillHeaderLeft: Math.round(box(header.children[1]).left),
+        skillLeft: Math.round(box(row.querySelector('[name="attr_specialisation_skill"]')).left),
+        deleteVisible: !!del && del.offsetParent !== null,
+        addVisible: document.querySelector(`.repcontrol${sel} .repcontrol_add`).offsetParent !== null,
+        editText: document.querySelector(`.repcontrol${sel} .repcontrol_edit`)?.textContent ?? null,
+      };
+    }, section);
+  const aligned = (l) => Math.abs(l.nameLeft - l.headerLeft) <= 2 && Math.abs(l.skillLeft - l.skillHeaderLeft) <= 2;
+
+  const normal = await rowLayout();
+  check(
+    "a row's fields line up under their column headers (Specialisation, Skill), and its delete button is hidden until Modify",
+    aligned(normal) && !normal.deleteVisible && normal.addVisible && normal.editText === "Modify",
+    normal
+  );
+
+  await frame.click(`.repcontrol${section} .repcontrol_edit`);
+  const editing = await rowLayout();
+  check(
+    "clicking Modify shows each row's delete button without moving the fields, hides +Add, and turns into Done",
+    aligned(editing) && editing.deleteVisible && !editing.addVisible && editing.editText === "Done",
+    editing
+  );
+
+  await frame.click(`.repcontainer${section} .repitem:last-child .repcontrol_del`);
+  await page.waitForTimeout(400);
+  check("the delete button removes the row", (await rows.count()) === rowsBefore, { rows: await rows.count(), rowsBefore });
+
+  await frame.click(`.repcontrol${section} .repcontrol_edit`);
+  const done = await frame.evaluate((sel) => ({
+    editmode: document.querySelector(`.repcontainer${sel}`).classList.contains("editmode"),
+    addVisible: document.querySelector(`.repcontrol${sel} .repcontrol_add`).offsetParent !== null,
+    editText: document.querySelector(`.repcontrol${sel} .repcontrol_edit`).textContent,
+  }), section);
+  check("clicking Done leaves Modify mode: +Add is back", !done.editmode && done.addVisible && done.editText === "Modify", done);
+  await frame.click(`.repcontrol${section} .repcontrol_add`);
+  await page.waitForTimeout(400);
+
+  // The sheet's change:repeating_specialisations handler reads and writes
+  // "repeating_specialisations_specialisation_*" with no row id, which on
+  // Roll20 means the row that changed, inside nested getSectionIDs/getAttrs
+  // callbacks. Athletics is 34 (Str 34 above); 4 advances add 4 x 5.
+  const lastRow = `.repcontainer${section} .repitem:last-child`;
+  await frame.selectOption(`${lastRow} select[name="attr_specialisation_skill"]`, "athletics");
+  await frame.fill(`${lastRow} input[name="attr_specialisation_advances"]`, "4");
+  await frame.press(`${lastRow} input[name="attr_specialisation_advances"]`, "Tab");
+  await page.waitForTimeout(800);
+  const total = await frame.evaluate((sel) => {
+    const row = document.querySelector(sel);
+    const id = row.getAttribute("data-reprowid");
+    const list = JSON.parse(window.__sandboxProps?.["repeating_specialisations"] ?? "[]");
+    return {
+      shown: row.querySelector('span[name="attr_specialisation_total"]').textContent.trim(),
+      stored: list.find((i) => i.id === id)?.fields?.specialisation_total ?? null,
+      rows: list.length,
+    };
+  }, lastRow);
+  check(
+    "a specialisation's Total is computed for its row: Athletics 34 + 4 advances x 5 = 54 (shown and stored), and no stray row is created",
+    total.shown === "54" && String(total.stored) === "54" && total.rows === rowsBefore + 1,
+    total
+  );
+
   // Clicking a characteristic makes the sheet's own script call startRoll()
   // with its imtest roll template, compute from the results, and
   // finishRoll(). That used to fail outright — the whole message went through
@@ -115,7 +193,7 @@ async function main() {
   check(
     "the posted roll is the sheet's own imtest template with server-filled roll placeholders, the script's computed text and the template CSS key",
     !!finished &&
-      finished.html.startsWith('<div class="sheet-rolltemplate-imtest">') &&
+      finished.html.includes('style="padding:5px 5px 4px 45px"><div class="sheet-rolltemplate-imtest">') &&
       finished.html.includes("data-roll-key=") &&
       finished.html.includes("Test adjusted to") &&
       finished.cssResourceKey === "roll20compat_rtcss_sandbox-imported-template",

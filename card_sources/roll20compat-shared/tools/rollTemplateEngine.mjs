@@ -459,6 +459,18 @@ function fillTranslations(html, translate) {
     });
 }
 
+// Roll20's chat gives every message `padding: 5px 5px 4px 45px` (the left
+// 45px is the avatar's), and sheet templates are written to cancel exactly
+// that: Blades in the Dark's .sheet-holder has margin: 0 -5px -4px -45px,
+// the corpus's most common convention. The platform's chat has no such box,
+// so without it those templates shift 45px left and are clipped. The padding
+// is inline because the template CSS is stored per import — this way sheets
+// imported earlier get it too.
+/** A sheet's own roll template inside Roll20's chat message box. */
+export function wrapInRoll20Message(html) {
+  return `<div class="textchatcontainer"><div class="message rollresult" style="padding:5px 5px 4px 45px">${html}</div></div>`;
+}
+
 /** A roll message with no template: its text with inline rolls, like a Roll20 chat line. */
 export function renderPlainRollMessage(text, translate, rolls = {}) {
   return `<div class="sheet-rolltemplate-plain">${renderValue(text, translate, rolls)}</div>`;

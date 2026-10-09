@@ -92,5 +92,9 @@
     Roll20Compat.RollButtons.install(root, rollDispatch, shim);
   }
 
-  global.Roll20CompatRuntime = { shim, rollDispatch, root, attrCleanup, repeating, translationApi };
+  // Last, so it sees translated labels and the repeating rows already drawn;
+  // rows added later are caught by its own observer.
+  const pictosCleanup = Roll20Compat.PictosFallback ? Roll20Compat.PictosFallback.install(root) : null;
+
+  global.Roll20CompatRuntime = { shim, rollDispatch, root, attrCleanup, repeating, translationApi, pictosCleanup };
 })(typeof window !== "undefined" ? window : globalThis);

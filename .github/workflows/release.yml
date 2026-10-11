@@ -1,0 +1,18 @@
+name: Release
+
+# Bump "version" in addon_files/info.json first, then run this. It packs the addon and
+# publishes a GitHub Release (tag = version, asset nm_r20_<version>.zip). The registry
+# (haffff/NordvikManager-Addons) picks the new version up in its daily sync PR.
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    uses: haffff/NordvikManager-Addons/.github/workflows/release-addon.yml@main
+    permissions:
+      contents: write
+    with:
+      pack-command: pnpm run pack
+      zip-path: packed.zip
+      asset-name: nm_r20_{version}.zip
+      tag: '{version}'

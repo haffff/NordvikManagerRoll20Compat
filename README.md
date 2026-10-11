@@ -151,3 +151,10 @@ Every `sandbox:*` check uses the built cards, so run `pnpm run pack` after any c
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+## Releasing
+
+1. Bump `version` in `addon_files/info.json` and merge it as usual.
+2. Run **Actions → Release → Run workflow**.
+
+The workflow packs the addon, checks that the zip's `info.json` matches, and publishes a GitHub Release (tag `<version>`, asset `nm_r20_<version>.zip`). It refuses a version that is already released. The registry ([NordvikManager-Addons](https://github.com/haffff/NordvikManager-Addons)) picks the new version up in its daily sync pull request.

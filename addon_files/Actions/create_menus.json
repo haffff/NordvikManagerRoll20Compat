@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/haffff/NordvikManager-Addons/refs/heads/main/schemas/action.json",
   "name": "create_menus",
   "hook": 5,
   "isEnabled": true,

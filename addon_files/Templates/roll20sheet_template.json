@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/haffff/NordvikManager-Addons/refs/heads/main/schemas/card.json",
   "name": "Roll20 Sheet (internal — do not use directly)",
   "description": "Internal render shell cloned by the Roll20 Sheet Importer view whenever a GM imports a new sheet. Do not create cards from this template directly — use the \"Roll20 Sheet Importer\" view instead.",
   "key": "roll20sheet",
@@ -12,6 +13,5 @@
       "value": "roll20compat_token_generic.json"
     }
   ],
-  "token": "roll20compat_token_generic.json",
   "hidden": true
 }

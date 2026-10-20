@@ -103,7 +103,7 @@ Actions run on the GM's server, so they're the place for anything authoritative:
 
 - Steps: `{ "Type": "<step>", "Data": { ... } }`, exact casing. Existing step types: AddMapTool, AddMenuItem, AddPropertyListItem, AddToolbarButton, AddToTurnOrder, Calculate, ChangeMap, CreateCard, Delay, DeleteCard, DeleteElement, DeleteProperty, DeleteResource, ExecuteAction, Exit, FilterCollection, FireClientMediator, ForEach, GetConnectedPlayers, GetData, GetDetail, GetPropertyValue, GetTurnOrder, If, Log, MoveElement, NextTurn, PausePlaylist, PlayPlaylist, PlaySound, PreviousTurn, QueryData, QueryProperties, ReadResource, RemoveFromTurnOrder, RemovePropertyListItem, RequestUserInput, RequirePermission, ResetTurnOrder, RollDice, RunClientCommand, RunScript, SendChat, SendCommand, SendRequest, SetDetail, SetInitiative, SetProperties, SetProperty, SetResource, SetVariable, ShowView, SortTurnOrder, StopPlaylist, StopSound, UpdatePropertyListItem, UpdateResource. Look up each step's `Data` fields in the step reference; don't invent them.
 - Variables: a step's `Output` stores a result; later steps read it with tokens. Built-ins: `gameId`, `gmId`, `actionId`, `actionName`, `actionPrefix`, `playerId`, `playerName`, `playerColor`, `playerIsOwner`, plus hook variables and the caller's arguments (built-ins always win).
-- Tokens: `%name%` (text), `%dto:name%` (JSON), `%v:obj.path[0].x%` (inside an object), `%q:{var}.prop%` / `%q:<guid>.prop%` (an entity's property), `%qn:card-"Goblin".hp%`, `%qn:resource-"myaddon_x.css".id%`.
+- Tokens: `%name%` (text), `%dto:name%` (JSON), `%v:obj.path[0].x%` (inside an object), `%q:type[name].prop%` (a property of the entity with that name; type: card, map, player, game, action, resource; e.g. `%q:card[Goblin].hp%`, `%q:resource[myaddon_x.css].id%`), `%q:{var}.prop%` / `%q:<guid>.prop%` (by id). `.id` / `.name` give the entity's own. Names match exactly; a miss gives empty text. All tokens are filled in in one pass: a value is never read as tokens again.
 - **If / ForEach / ExecuteAction give the sub-action a copy of the variables**: nothing it sets comes back. For calculations, use one **RunScript** step (JavaScript, `vars` in, return an object out; 2 s, 16 MB, no network or files, no `eval`), not long chains of steps.
 - Errors stop the action and go to the game's event log with the step. Use **Log** to inspect values.
 - In addon files, `isEnabled` is ignored (addon actions are always enabled) and `prefix` is replaced by the key.
@@ -112,7 +112,7 @@ Hooks (`hook` number): 0 none (called by name), 1 Install, 2 Uninstall, 3 Player
 
 ## 6. Themes
 
-One stylesheet resource plus an install action (hook 1) that adds its id to the game's `customStylesheets` (find it with `%qn:resource-"<key>_theme.css".id%`, keep existing entries). Embed fonts and textures as `data:` URIs: the app strips `url()` pointing outside the game. Cards are sandboxed and keep their own look. Example: https://github.com/haffff/NordvikManager-Themes
+One stylesheet resource plus an install action (hook 1) that adds its id to the game's `customStylesheets` (find it with `%q:resource[<key>_theme.css].id%`, keep existing entries). Embed fonts and textures as `data:` URIs: the app strips `url()` pointing outside the game. Cards are sandboxed and keep their own look. Example: https://github.com/haffff/NordvikManager-Themes
 
 ## 7. Development loop
 

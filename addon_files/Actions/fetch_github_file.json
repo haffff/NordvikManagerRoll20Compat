@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/haffff/NordvikManager-Addons/refs/heads/main/schemas/action.json",
   "name": "fetch_github_file",
   "hook": 0,
   "prefix": "roll20compat",
@@ -20,7 +21,7 @@
         "Label": "Cache it as a game resource under the caller-supplied key",
         "Key": "%resourceKey%",
         "Name": "%resourceKey%",
-        "Content": "%v:output.responseBody%",
+        "Content": "%output.responseBody%",
         "MimeType": "%mimeType%"
       },
       "Type": "SetResource"

@@ -5,7 +5,7 @@
     "description": "Import community Roll20 character sheets (Blades in the Dark, Fate Core, ...) as NordvikManager Templates via the Roll20 Sheet Importer",
     "version": "0.0.7",
     "author": "haffff",
-    "license": "MIT",
+    "license": "AGPL-3.0-only",
     "repositoryUrl": "https://github.com/haffff/NordvikManagerRoll20Compat",
     "dependencies": []
 }

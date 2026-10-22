@@ -150,7 +150,7 @@ Every `sandbox:*` check uses the built cards, so run `pnpm run pack` after any c
 
 ## License
 
-Copyright (C) 2025-2026 haffff. This addon is licensed under the [GNU Affero General Public License v3](LICENSE) (`AGPL-3.0-only`), with an additional attribution term: see [NOTICE](NOTICE).
+MIT, see [LICENSE](LICENSE).
 
 ## Releasing
 

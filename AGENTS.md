@@ -85,6 +85,7 @@ Errors: refused calls reject with an `Error` that says why. Calls time out after
 ## 5. Actions
 
 Docs: https://nordvikmanager.pl/addon-guide/actions/overview, step reference: https://nordvikmanager.pl/addon-guide/actions/steps
+Every step with every argument: section 5 of https://nordvikmanager.pl/ai/ACTIONS.md (the guide for writing single actions).
 
 Actions run on the GM's server, so they're the place for anything authoritative: rolls, changing other entities, creating cards, calling web APIs.
 

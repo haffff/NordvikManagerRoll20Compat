@@ -10,7 +10,7 @@
       "Data": {
         "Label": "Create a new Template for this imported sheet",
         "Name": "%name%",
-        "TemplateId": "%qn:card-\"Roll20 Sheet (internal — do not use directly)\".id%",
+        "TemplateId": "%q:card[Roll20 Sheet (internal — do not use directly)].id%",
         "IsTemplate": true,
         "Owner": "%gmId%",
         "Output": "newTemplateId"

@@ -21,7 +21,7 @@
         "Label": "Cache tree as a game resource",
         "Key": "roll20compat_github_tree",
         "Name": "roll20compat_github_tree",
-        "Content": "%v:output.responseBody%",
+        "Content": "%output.responseBody%",
         "MimeType": "application/json"
       },
       "Type": "SetResource"

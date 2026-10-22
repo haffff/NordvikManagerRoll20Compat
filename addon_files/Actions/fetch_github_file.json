@@ -21,7 +21,7 @@
         "Label": "Cache it as a game resource under the caller-supplied key",
         "Key": "%resourceKey%",
         "Name": "%resourceKey%",
-        "Content": "%v:output.responseBody%",
+        "Content": "%output.responseBody%",
         "MimeType": "%mimeType%"
       },
       "Type": "SetResource"

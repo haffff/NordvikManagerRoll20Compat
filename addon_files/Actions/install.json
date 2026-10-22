@@ -7,25 +7,36 @@
     {
       "Data": {
         "Label": "Create menus",
-        "Name": "",
         "Value": "roll20compat/create_menus"
       },
       "Type": "ExecuteAction"
     },
     {
       "Data": {
-        "Label": "Find sheets imported before the generic token existed (templates and their characters)",
-        "PropertyNames": "roll20compat_content_id",
+        "Label": "Sheets imported before the generic token existed (templates and their characters)",
+        "What": "cards",
+        "Property": "roll20compat_content_id",
+        "IncludeTemplates": true,
         "Output": "importedSheets"
       },
-      "Type": "QueryProperties"
+      "Type": "Find"
     },
     {
       "Data": {
         "Label": "Give each of them the generic token",
         "Collection": "importedSheets",
-        "ItemName": "sheetProp",
-        "Action": "roll20compat/set_token"
+        "ItemName": "sheet",
+        "Do": [
+          {
+            "Data": {
+              "Label": "Use the generic Roll20 token for this sheet",
+              "ParentId": "%sheet.id%",
+              "PropertyName": "token",
+              "PropertyValue": "roll20compat_token_generic.json"
+            },
+            "Type": "SetProperty"
+          }
+        ]
       },
       "Type": "ForEach"
     }

@@ -116,8 +116,9 @@ Actions run on the GM's server, so they're the place for anything authoritative:
 - Sharing with players: **SetPermission** gives Read (or Control on a token) on a card, token or map, or takes it back. It never gives Edit. Only GMs can change a card's code (`mainResource`, `additionalResources`).
 - Errors stop the action and go to the game's event log with the step. Use **Log** to inspect values.
 - In addon files, `isEnabled` is ignored (addon actions are always enabled) and `prefix` is replaced by the key.
+- `hookFilter` says which occurrences of the hook run the action. Chat Command (19) needs it: the commands without `/`, e.g. `"poll, vote"`; only those reach the action and other unknown commands still get "Wrong command". Other hooks take none.
 
-Hooks (`hook` number): 0 none (called by name), 1 Install, 2 Uninstall, 3 Player Join, 4 Player Leave, 5 Player Load, 6 Element Added, 7 Element Updated, 8 Element Moved, 9 Element Removed, 10 Property Added, 11 Property Updated, 12 Property Removed, 13 Map Added, 14 Map Updated, 15 Map Removed, 16 Map Changed, 17 Game Updated, 18 Chat Message, 19 Chat Command, 20 Card Added, 21 Card Updated, 22 Card Deleted, 23 Turn Changed. Docs: https://nordvikmanager.pl/addon-guide/actions/hooks
+Hooks (`hook` number): 0 none (called by name), 1 Install, 2 Uninstall, 3 Player Join, 4 Player Leave, 5 Player Load, 6 Element Added, 7 Element Updated, 8 Element Moved, 9 Element Removed, 10 Property Added, 11 Property Updated, 12 Property Removed, 13 Map Added, 14 Map Updated, 15 Map Removed, 16 Map Changed, 17 Game Updated, 18 Chat Message, 19 Chat Command (needs `"hookFilter"`: the commands it handles, e.g. `"poll, vote"`), 20 Card Added, 21 Card Updated, 22 Card Deleted, 23 Turn Changed. Docs: https://nordvikmanager.pl/addon-guide/actions/hooks
 
 ## 6. Themes
 

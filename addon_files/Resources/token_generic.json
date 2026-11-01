@@ -24,8 +24,7 @@
     "paintFirst": "fill",
     "globalCompositeOperation": "source-over",
     "crossOrigin": null,
-    "filters": [],
-    "clipShape": "circle"
+    "filters": []
   },
   "editableProps": [
     {

@@ -9,7 +9,7 @@
       "id": "b3b3b3b3-0d00-4a00-8a00-000000000001",
       "Data": {
         "Label": "Show Roll20 sheet importer view",
-        "ViewKey": "roll20importerview",
+        "ViewKey": "roll20compat_roll20importerview",
         "Player": "%playerId%"
       },
       "Type": "ShowView"

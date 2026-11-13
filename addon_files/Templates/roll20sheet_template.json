@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/haffff/NordvikManager-Addons/refs/heads/main/schemas/card.json",
   "name": "Roll20 Sheet (internal — do not use directly)",
   "description": "Internal render shell cloned by the Roll20 Sheet Importer view whenever a GM imports a new sheet. Do not create cards from this template directly — use the \"Roll20 Sheet Importer\" view instead.",
-  "key": "roll20sheet",
+  "key": "roll20compat_roll20sheet",
   "mainResource": "roll20compat_roll20sheet_index.html",
   "additionalResources": [
     "roll20compat_roll20compat-sheetrenderer.js"

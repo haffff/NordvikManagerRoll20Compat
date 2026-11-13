@@ -27,6 +27,7 @@ Kinds of addons: **cards** (templates/views + actions), **actions only** (automa
 ## 2. Fixed rules
 
 - **`key`** in `info.json`: lowercase letters and digits only (`^[a-z0-9]+$`). It prefixes every resource (`myaddon_index.html`) and action (`myaddon/roll_check`). **Never change it after a release.**
+- **Template and view `key`s** start with the addon key: `myaddon_character`, `myaddon_settings`. Card keys are unique in a game, whichever addon brought them. **Never change a template's key after a release**: an update removes and re-creates the templates, and the cards made from them find their template again by its key.
 - **Resource names:** a file `Resources/x.js` is the resource `<key>_x.js`. Templates, views and actions refer to it by that name.
 - **Action names:** called as `<key>/<name>`. An action file's `prefix` is replaced with the key on install.
 - **`version`** in `info.json`: `MAJOR.MINOR.PATCH`. **Raise it with every release**, or games won't see the update.
@@ -150,7 +151,7 @@ One stylesheet resource plus an install action (hook 1) that adds its id to the 
 | Put API keys, tokens or secrets in addon files or properties | Nothing in an addon is secret; players can read what they can open |
 | Store numbers or objects as property values | Strings; `JSON.stringify` / `JSON.parse` |
 | Use ES modules, code splitting or top-level `await` in the built card | One IIFE bundle (see section 3) |
-| Rename `key`, or release without raising `version` | Keep the key forever; raise the version every release |
+| Rename `key` or a template's key, or release without raising `version` | Keep the keys forever; raise the version every release |
 | Commit `packed/`, `packed.zip`, `dist/`, `node_modules/` | `.gitignore` them; the Release workflow builds the zip |
 | Use a GitHub "Source code" zip as `releaseUrl` | The release asset: `https://github.com/<you>/<repo>/releases/download/<tag>/<file>.zip` |
 | Invent CardAPI methods, step types, step fields, hooks or JSON fields | This file, the docs and the schemas; ask the user if something is missing |

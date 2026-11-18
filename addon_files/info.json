@@ -3,9 +3,15 @@
     "key": "roll20compat",
     "name": "Roll20 Compatibility Layer",
     "description": "Import community Roll20 character sheets (Blades in the Dark, Fate Core, ...) as NordvikManager Templates via the Roll20 Sheet Importer",
-    "version": "0.1.0",
+    "version": "0.1.2",
     "author": "haffff",
     "license": "MIT",
     "repositoryUrl": "https://github.com/haffff/NordvikManagerRoll20Compat",
+    "network": {
+        "hosts": [
+            "https://api.github.com"
+        ],
+        "userHosts": "GitHub file links you enter"
+    },
     "dependencies": []
 }
